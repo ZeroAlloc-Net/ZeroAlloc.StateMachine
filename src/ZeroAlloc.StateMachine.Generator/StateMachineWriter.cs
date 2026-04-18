@@ -147,7 +147,7 @@ internal static class StateMachineWriter
         foreach (var t in guardedTransitions)
         {
             sb.AppendLine($"    /// <summary>Guard for the {t.From} → {t.To} transition. Return <c>false</c> to block it.</summary>");
-            sb.AppendLine($"    partial bool Guard{t.On}({st} from, {tr} on);");
+            sb.AppendLine($"    private partial bool Guard{t.On}({st} from, {tr} on);");
         }
 
         // OnExit stubs — one per unique From state

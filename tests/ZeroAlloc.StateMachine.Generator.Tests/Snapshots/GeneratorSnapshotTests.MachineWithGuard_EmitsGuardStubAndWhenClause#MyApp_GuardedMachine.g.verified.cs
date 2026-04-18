@@ -56,7 +56,7 @@ partial class GuardedMachine
 
     // ── Partial hooks — implement what you need, leave the rest ─────────────
     /// <summary>Guard for the Idle → Pending transition. Return <c>false</c> to block it.</summary>
-    partial bool GuardSubmit(State from, Trigger on);
+    private partial bool GuardSubmit(State from, Trigger on);
     /// <summary>Called before leaving <c>Idle</c>.</summary>
     partial void OnExitIdle(Trigger on);
     /// <summary>Called before leaving <c>Pending</c>.</summary>
