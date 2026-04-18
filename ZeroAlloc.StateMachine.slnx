@@ -7,4 +7,7 @@
     <Project Path="tests/ZeroAlloc.StateMachine.Tests/ZeroAlloc.StateMachine.Tests.csproj" />
     <Project Path="tests/ZeroAlloc.StateMachine.Generator.Tests/ZeroAlloc.StateMachine.Generator.Tests.csproj" />
   </Folder>
+  <Folder Name="/benchmarks/">
+    <Project Path="benchmarks/ZeroAlloc.StateMachine.Benchmarks/ZeroAlloc.StateMachine.Benchmarks.csproj" />
+  </Folder>
 </Solution>

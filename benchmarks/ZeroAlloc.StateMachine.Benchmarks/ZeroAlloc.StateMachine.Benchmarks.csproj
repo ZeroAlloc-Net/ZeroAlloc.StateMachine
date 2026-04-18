@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <Optimize>true</Optimize>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Main package: attribute types -->
+    <ProjectReference Include="..\..\src\ZeroAlloc.StateMachine\ZeroAlloc.StateMachine.csproj" />
+    <!-- Generator: runs on this project's source files -->
+    <ProjectReference Include="..\..\src\ZeroAlloc.StateMachine.Generator\ZeroAlloc.StateMachine.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="true" />
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+  </ItemGroup>
+</Project>
