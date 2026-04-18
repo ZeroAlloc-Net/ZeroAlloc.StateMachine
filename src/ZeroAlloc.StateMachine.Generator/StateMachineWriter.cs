@@ -139,22 +139,32 @@ internal static class StateMachineWriter
         var st = m.StateTypeShort;
         var tr = m.TriggerTypeShort;
 
-        sb.AppendLine($"    // Guards and entry/exit hooks — implement in the consuming partial class");
+        sb.AppendLine();
+        sb.AppendLine($"    // ── Partial hooks — implement what you need, leave the rest ─────────────");
 
-        // Guard stubs — one per guarded transition
+        // Guard stubs — one per guarded transition (only emitted when When = true)
         var guardedTransitions = m.Transitions.Where(static t => t.HasGuard).ToArray();
         foreach (var t in guardedTransitions)
+        {
+            sb.AppendLine($"    /// <summary>Guard for the {t.From} → {t.To} transition. Return <c>false</c> to block it.</summary>");
             sb.AppendLine($"    partial bool Guard{t.On}({st} from, {tr} on);");
+        }
 
         // OnExit stubs — one per unique From state
         var exitStates = m.Transitions.Select(static t => t.From).Distinct(StringComparer.Ordinal).ToArray();
         foreach (var s in exitStates)
+        {
+            sb.AppendLine($"    /// <summary>Called before leaving <c>{s}</c>.</summary>");
             sb.AppendLine($"    partial void OnExit{s}({tr} on);");
+        }
 
         // OnEnter stubs — one per unique To state
         var enterStates = m.Transitions.Select(static t => t.To).Distinct(StringComparer.Ordinal).ToArray();
         foreach (var s in enterStates)
+        {
+            sb.AppendLine($"    /// <summary>Called after entering <c>{s}</c>.</summary>");
             sb.AppendLine($"    partial void OnEnter{s}({st} from);");
+        }
     }
 
     // ── Concurrent (Task 8) ───────────────────────────────────────────────────
