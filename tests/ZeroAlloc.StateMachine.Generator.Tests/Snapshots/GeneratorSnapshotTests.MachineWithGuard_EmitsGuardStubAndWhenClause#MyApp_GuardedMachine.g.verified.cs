@@ -6,28 +6,28 @@ namespace MyApp;
 
 partial class GuardedMachine
 {
-    private State _state = State.Idle;
+    private global::MyApp.State _state = global::MyApp.State.Idle;
 
     /// <summary>Current state of the machine.</summary>
-    public State Current => _state;
+    public global::MyApp.State Current => _state;
 
     /// <summary>
     /// Attempt to fire <paramref name="trigger"/> from the current state.
     /// Returns <c>true</c> if the transition occurred; <c>false</c> if no matching transition or a guard rejected it.
     /// </summary>
-    public bool TryFire(Trigger trigger)
+    public bool TryFire(global::MyApp.Trigger trigger)
     {
         return (Current, trigger) switch
         {
-            (State.Idle, Trigger.Submit)
-                when GuardSubmit(State.Idle, Trigger.Submit)
-                => Fire(State.Idle, State.Pending, trigger),
-            (State.Pending, Trigger.Complete) => Fire(State.Pending, State.Done, trigger),
+            (global::MyApp.State.Idle, global::MyApp.Trigger.Submit)
+                when GuardSubmit(global::MyApp.State.Idle, global::MyApp.Trigger.Submit)
+                => Fire(global::MyApp.State.Idle, global::MyApp.State.Pending, trigger),
+            (global::MyApp.State.Pending, global::MyApp.Trigger.Complete) => Fire(global::MyApp.State.Pending, global::MyApp.State.Done, trigger),
             _ => false
         };
     }
 
-    private bool Fire(State from, State to, Trigger trigger)
+    private bool Fire(global::MyApp.State from, global::MyApp.State to, global::MyApp.Trigger trigger)
     {
         OnExit(from, trigger);
         _state = to;
@@ -35,34 +35,34 @@ partial class GuardedMachine
         return true;
     }
 
-    private void OnExit(State state, Trigger trigger)
+    private void OnExit(global::MyApp.State state, global::MyApp.Trigger trigger)
     {
         switch (state)
         {
-            case State.Idle: OnExitIdle(trigger); break;
-            case State.Pending: OnExitPending(trigger); break;
+            case global::MyApp.State.Idle: OnExitIdle(trigger); break;
+            case global::MyApp.State.Pending: OnExitPending(trigger); break;
         }
     }
 
-    private void OnEnter(State state, State from)
+    private void OnEnter(global::MyApp.State state, global::MyApp.State from)
     {
         switch (state)
         {
-            case State.Pending: OnEnterPending(from); break;
-            case State.Done: OnEnterDone(from); break;
+            case global::MyApp.State.Pending: OnEnterPending(from); break;
+            case global::MyApp.State.Done: OnEnterDone(from); break;
         }
     }
 
 
     // ── Partial hooks — implement what you need, leave the rest ─────────────
-    /// <summary>Guard for the Idle → Pending transition. Return <c>false</c> to block it.</summary>
-    private partial bool GuardSubmit(State from, Trigger on);
+    /// <summary>Guard for the Idle → Pending transition on <c>Submit</c>. Implement this method; return <c>false</c> to block the transition.</summary>
+    private partial bool GuardSubmit(global::MyApp.State from, global::MyApp.Trigger on);
     /// <summary>Called before leaving <c>Idle</c>.</summary>
-    partial void OnExitIdle(Trigger on);
+    partial void OnExitIdle(global::MyApp.Trigger on);
     /// <summary>Called before leaving <c>Pending</c>.</summary>
-    partial void OnExitPending(Trigger on);
+    partial void OnExitPending(global::MyApp.Trigger on);
     /// <summary>Called after entering <c>Pending</c>.</summary>
-    partial void OnEnterPending(State from);
+    partial void OnEnterPending(global::MyApp.State from);
     /// <summary>Called after entering <c>Done</c>.</summary>
-    partial void OnEnterDone(State from);
+    partial void OnEnterDone(global::MyApp.State from);
 }

@@ -1,6 +1,5 @@
 namespace ZeroAlloc.StateMachine.Generator;
 
-using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
@@ -36,8 +35,8 @@ internal static class StateMachineWriter
 
     private static void WriteNonConcurrentBody(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
-        var tr = m.TriggerTypeShort;
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
 
         // State field + Current property
         sb.AppendLine($"    private {st} _state = {st}.{m.InitialState};");
@@ -93,14 +92,13 @@ internal static class StateMachineWriter
         WriteOnEnterDispatcher(sb, m);
         sb.AppendLine();
 
-        // Partial stubs (guards + hooks) — detailed stubs in Task 7; emit minimal stubs now
         WritePartialStubs(sb, m);
     }
 
     private static void WriteOnExitDispatcher(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
-        var tr = m.TriggerTypeShort;
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
         var exitStates = m.Transitions.Select(static t => t.From).Distinct(StringComparer.Ordinal).ToArray();
 
         sb.AppendLine($"    private void OnExit({st} state, {tr} trigger)");
@@ -118,7 +116,7 @@ internal static class StateMachineWriter
 
     private static void WriteOnEnterDispatcher(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
+        var st = m.StateTypeFqn;
         var enterStates = m.Transitions.Select(static t => t.To).Distinct(StringComparer.Ordinal).ToArray();
 
         sb.AppendLine($"    private void OnEnter({st} state, {st} from)");
@@ -136,17 +134,18 @@ internal static class StateMachineWriter
 
     private static void WritePartialStubs(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
-        var tr = m.TriggerTypeShort;
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
 
         sb.AppendLine();
         sb.AppendLine($"    // ── Partial hooks — implement what you need, leave the rest ─────────────");
 
-        // Guard stubs — one per guarded transition (only emitted when When = true)
+        // Guard stubs — defining declaration only; user must provide the implementing declaration.
+        // If unimplemented, the compiler emits CS8795, telling the user to implement the guard.
         var guardedTransitions = m.Transitions.Where(static t => t.HasGuard).ToArray();
         foreach (var t in guardedTransitions)
         {
-            sb.AppendLine($"    /// <summary>Guard for the {t.From} → {t.To} transition. Return <c>false</c> to block it.</summary>");
+            sb.AppendLine($"    /// <summary>Guard for the {t.From} \u2192 {t.To} transition on <c>{t.On}</c>. Implement this method; return <c>false</c> to block the transition.</summary>");
             sb.AppendLine($"    private partial bool Guard{t.On}({st} from, {tr} on);");
         }
 
@@ -167,12 +166,12 @@ internal static class StateMachineWriter
         }
     }
 
-    // ── Concurrent (Task 8) ───────────────────────────────────────────────────
+    // ── Concurrent ───────────────────────────────────────────────────────────
 
     private static void WriteConcurrentBody(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
-        var tr = m.TriggerTypeShort;
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
 
         // Volatile long state field
         sb.AppendLine($"    private long _state = (long){st}.{m.InitialState};");
@@ -194,13 +193,14 @@ internal static class StateMachineWriter
 
     private static void WriteConcurrentTryFire(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
-        var tr = m.TriggerTypeShort;
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
 
         sb.AppendLine($"    /// <summary>");
         sb.AppendLine($"    /// Attempt to fire <paramref name=\"trigger\"/> atomically via <c>Interlocked.CompareExchange</c>.");
         sb.AppendLine($"    /// Spins until the CAS succeeds or no matching transition exists.");
         sb.AppendLine($"    /// Returns <c>true</c> if the transition occurred.");
+        sb.AppendLine($"    /// Entry and exit hooks fire after the CAS and are not synchronized — they may interleave with hooks from concurrent callers.");
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    public bool TryFire({tr} trigger)");
         sb.AppendLine($"    {{");
@@ -233,8 +233,8 @@ internal static class StateMachineWriter
 
     private static void WriteConcurrentPartialStubs(StringBuilder sb, StateMachineModel m)
     {
-        var st = m.StateTypeShort;
-        var tr = m.TriggerTypeShort;
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
 
         sb.AppendLine();
         sb.AppendLine($"    // ── Partial hooks — implement what you need, leave the rest ─────────────");

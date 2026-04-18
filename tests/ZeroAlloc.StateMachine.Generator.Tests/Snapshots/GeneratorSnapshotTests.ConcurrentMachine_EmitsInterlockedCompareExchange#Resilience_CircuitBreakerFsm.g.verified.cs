@@ -6,27 +6,28 @@ namespace Resilience;
 
 partial class CircuitBreakerFsm
 {
-    private long _state = (long)CbState.Closed;
+    private long _state = (long)global::Resilience.CbState.Closed;
 
     /// <summary>Current state (thread-safe read via <see cref="System.Threading.Volatile"/>).</summary>
-    public CbState Current => (CbState)System.Threading.Volatile.Read(ref _state);
+    public global::Resilience.CbState Current => (global::Resilience.CbState)System.Threading.Volatile.Read(ref _state);
 
     /// <summary>
     /// Attempt to fire <paramref name="trigger"/> atomically via <c>Interlocked.CompareExchange</c>.
     /// Spins until the CAS succeeds or no matching transition exists.
     /// Returns <c>true</c> if the transition occurred.
+    /// Entry and exit hooks fire after the CAS and are not synchronized — they may interleave with hooks from concurrent callers.
     /// </summary>
-    public bool TryFire(CbTrigger trigger)
+    public bool TryFire(global::Resilience.CbTrigger trigger)
     {
         while (true)
         {
-            var current = (CbState)System.Threading.Volatile.Read(ref _state);
-            CbState? next = (current, trigger) switch
+            var current = (global::Resilience.CbState)System.Threading.Volatile.Read(ref _state);
+            global::Resilience.CbState? next = (current, trigger) switch
             {
-                (CbState.Closed, CbTrigger.Trip) => (CbState?)CbState.Open,
-                (CbState.Open, CbTrigger.Probe) => (CbState?)CbState.HalfOpen,
-                (CbState.HalfOpen, CbTrigger.Reset) => (CbState?)CbState.Closed,
-                (CbState.HalfOpen, CbTrigger.Trip) => (CbState?)CbState.Open,
+                (global::Resilience.CbState.Closed, global::Resilience.CbTrigger.Trip) => (global::Resilience.CbState?)global::Resilience.CbState.Open,
+                (global::Resilience.CbState.Open, global::Resilience.CbTrigger.Probe) => (global::Resilience.CbState?)global::Resilience.CbState.HalfOpen,
+                (global::Resilience.CbState.HalfOpen, global::Resilience.CbTrigger.Reset) => (global::Resilience.CbState?)global::Resilience.CbState.Closed,
+                (global::Resilience.CbState.HalfOpen, global::Resilience.CbTrigger.Trip) => (global::Resilience.CbState?)global::Resilience.CbState.Open,
                 _ => null
             };
 
@@ -43,38 +44,38 @@ partial class CircuitBreakerFsm
         }
     }
 
-    private void OnExit(CbState state, CbTrigger trigger)
+    private void OnExit(global::Resilience.CbState state, global::Resilience.CbTrigger trigger)
     {
         switch (state)
         {
-            case CbState.Closed: OnExitClosed(trigger); break;
-            case CbState.Open: OnExitOpen(trigger); break;
-            case CbState.HalfOpen: OnExitHalfOpen(trigger); break;
+            case global::Resilience.CbState.Closed: OnExitClosed(trigger); break;
+            case global::Resilience.CbState.Open: OnExitOpen(trigger); break;
+            case global::Resilience.CbState.HalfOpen: OnExitHalfOpen(trigger); break;
         }
     }
 
-    private void OnEnter(CbState state, CbState from)
+    private void OnEnter(global::Resilience.CbState state, global::Resilience.CbState from)
     {
         switch (state)
         {
-            case CbState.Open: OnEnterOpen(from); break;
-            case CbState.HalfOpen: OnEnterHalfOpen(from); break;
-            case CbState.Closed: OnEnterClosed(from); break;
+            case global::Resilience.CbState.Open: OnEnterOpen(from); break;
+            case global::Resilience.CbState.HalfOpen: OnEnterHalfOpen(from); break;
+            case global::Resilience.CbState.Closed: OnEnterClosed(from); break;
         }
     }
 
     // ── Partial hooks — implement what you need, leave the rest ─────────────
     // Note: guards are not generated in concurrent mode (TOCTOU risk).
     /// <summary>Called after leaving <c>Closed</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>
-    partial void OnExitClosed(CbTrigger on);
+    partial void OnExitClosed(global::Resilience.CbTrigger on);
     /// <summary>Called after leaving <c>Open</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>
-    partial void OnExitOpen(CbTrigger on);
+    partial void OnExitOpen(global::Resilience.CbTrigger on);
     /// <summary>Called after leaving <c>HalfOpen</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>
-    partial void OnExitHalfOpen(CbTrigger on);
+    partial void OnExitHalfOpen(global::Resilience.CbTrigger on);
     /// <summary>Called after entering <c>Open</c>. May be called from multiple threads.</summary>
-    partial void OnEnterOpen(CbState from);
+    partial void OnEnterOpen(global::Resilience.CbState from);
     /// <summary>Called after entering <c>HalfOpen</c>. May be called from multiple threads.</summary>
-    partial void OnEnterHalfOpen(CbState from);
+    partial void OnEnterHalfOpen(global::Resilience.CbState from);
     /// <summary>Called after entering <c>Closed</c>. May be called from multiple threads.</summary>
-    partial void OnEnterClosed(CbState from);
+    partial void OnEnterClosed(global::Resilience.CbState from);
 }
