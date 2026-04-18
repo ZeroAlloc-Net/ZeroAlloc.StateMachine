@@ -5,6 +5,7 @@
     <LangVersion>latest</LangVersion>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
 
+    <!-- NuGet package metadata (shared across all packable projects) -->
     <Authors>Marcel Roozekrans</Authors>
     <Company>Marcel Roozekrans</Company>
     <Copyright>Copyright (c) Marcel Roozekrans</Copyright>
@@ -17,6 +18,7 @@
     <PackageTags>statemachine;fsm;sourcegenerator;zeroalloc;performance;aot</PackageTags>
   </PropertyGroup>
 
+  <!-- Include README and icon in every packable project -->
   <ItemGroup Condition="'$(IsPackable)' != 'false'">
     <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="\" />
     <None Include="$(MSBuildThisFileDirectory)assets\icon.png" Pack="true" PackagePath="\" />
@@ -36,6 +38,9 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
     <PackageReference Include="ZeroAlloc.Analyzers" Version="1.3.1" PrivateAssets="all">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="NetFabric.Hyperlinq.Analyzer" Version="2.3.0" PrivateAssets="all">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
     </PackageReference>
   </ItemGroup>
