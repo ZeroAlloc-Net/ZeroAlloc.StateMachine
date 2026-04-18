@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <PackageId>ZeroAlloc.StateMachine</PackageId>
+    <Description>Source-generated, zero-allocation finite state machines for .NET. Add [StateMachine] and [Transition] attributes to a partial class; the generator emits a TryFire switch expression with no heap allocation on the transition path. AOT-safe.</Description>
+    <Version>0.0.0-local</Version>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+  </PropertyGroup>
+
+  <!--
+  <ItemGroup>
+    <!- - Generator is bundled as an Analyzer in the NuGet package — consumers get it automatically - ->
+    <ProjectReference Include="..\ZeroAlloc.StateMachine.Generator\ZeroAlloc.StateMachine.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
+
+  <Target Name="IncludeGeneratorInPackage" BeforeTargets="_GetPackageFiles">
+    <ItemGroup>
+      <None Include="$(MSBuildThisFileDirectory)..\ZeroAlloc.StateMachine.Generator\bin\$(Configuration)\netstandard2.0\ZeroAlloc.StateMachine.Generator.dll"
+            Pack="true"
+            PackagePath="analyzers/dotnet/cs"
+            Visible="false" />
+    </ItemGroup>
+  </Target>
+  -->
+</Project>
