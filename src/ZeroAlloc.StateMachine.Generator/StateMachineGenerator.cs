@@ -2,7 +2,7 @@ namespace ZeroAlloc.StateMachine.Generator;
 
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -45,6 +45,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
     {
         if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
+        ct.ThrowIfCancellationRequested();
 
         // [StateMachine] — the primary matched attribute
         var smAttr = ctx.Attributes[0];
@@ -56,7 +57,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var (transitions, terminalStates, stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
             = CollectAttributes(type);
 
-        if (transitions.Count == 0) return null; // No transitions found — not a valid state machine
+        if (transitions.IsEmpty) return null; // No transitions found — not a valid state machine
         if (stateTypeFqn is null || triggerTypeFqn is null) return null;
         if (string.IsNullOrEmpty(initialState)) return null;
 
@@ -64,8 +65,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                      ? null
                      : type.ContainingNamespace.ToDisplayString();
         var isStruct = type.TypeKind == TypeKind.Struct;
-        var diagnostics = new List<Diagnostic>();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
+        ct.ThrowIfCancellationRequested();
         AnalyzeDiagnostics(initialState, transitions, terminalStates, stateTypeShort!, type, isStruct, concurrent, diagnostics);
 
         return new StateMachineModel(
@@ -73,20 +75,20 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             initialState, concurrent,
             stateTypeFqn, stateTypeShort!,
             triggerTypeFqn, triggerTypeShort!,
-            transitions, terminalStates, diagnostics);
+            transitions, terminalStates, diagnostics.ToImmutable());
     }
 
     private static (
-        List<TransitionModel> Transitions,
-        List<string> TerminalStates,
+        ImmutableArray<TransitionModel> Transitions,
+        ImmutableArray<string> TerminalStates,
         string? StateTypeFqn,
         string? StateTypeShort,
         string? TriggerTypeFqn,
         string? TriggerTypeShort)
         CollectAttributes(INamedTypeSymbol type)
     {
-        var transitions    = new List<TransitionModel>();
-        var terminalStates = new List<string>();
+        var transitions    = ImmutableArray.CreateBuilder<TransitionModel>();
+        var terminalStates = ImmutableArray.CreateBuilder<string>();
         string? stateTypeFqn    = null;
         string? stateTypeShort  = null;
         string? triggerTypeFqn  = null;
@@ -128,7 +130,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             }
         }
 
-        return (transitions, terminalStates, stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort);
+        return (transitions.ToImmutable(), terminalStates.ToImmutable(), stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort);
     }
 
     private static string? GetEnumMemberName(AttributeData attr, string namedArgKey, ITypeSymbol enumType)
@@ -152,13 +154,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
     private static void AnalyzeDiagnostics(
         string initialState,
-        IReadOnlyList<TransitionModel> transitions,
-        IReadOnlyList<string> terminalStates,
+        ImmutableArray<TransitionModel> transitions,
+        ImmutableArray<string> terminalStates,
         string stateTypeShort,
         INamedTypeSymbol type,
         bool isStruct,
         bool concurrent,
-        List<Diagnostic> diagnostics)
+        ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
 
@@ -172,9 +174,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         var allFromStates = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
         var allToStates   = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
-        var allTriggers   = new string[transitions.Count];
+        var allTriggers   = new string[transitions.Length];
 
-        for (var i = 0; i < transitions.Count; i++)
+        for (var i = 0; i < transitions.Length; i++)
         {
             allFromStates.Add(transitions[i].From);
             allToStates.Add(transitions[i].To);
@@ -187,13 +189,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
     private static void AnalyzeReachability(
         string initialState,
-        IReadOnlyList<string> terminalStates,
+        ImmutableArray<string> terminalStates,
         string stateTypeShort,
         INamedTypeSymbol type,
         Location location,
         System.Collections.Generic.HashSet<string> allFromStates,
         System.Collections.Generic.HashSet<string> allToStates,
-        List<Diagnostic> diagnostics)
+        ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         // ZSM0001: states that appear in From but never in To and are not InitialState → unreachable
         foreach (var fromState in allFromStates)
@@ -224,7 +226,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         INamedTypeSymbol type,
         Location location,
         string[] allTriggers,
-        List<Diagnostic> diagnostics)
+        ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         // ZSM0003: triggers used exactly once (only meaningful if more than one trigger is used total)
         var triggerCounts = new System.Collections.Generic.Dictionary<string, int>(StringComparer.Ordinal);
