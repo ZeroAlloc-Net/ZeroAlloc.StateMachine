@@ -8,8 +8,12 @@ using System.Threading;
 public sealed class StateMachineGenerator : IIncrementalGenerator
 {
     private const string StateMachineAttributeFqn        = "ZeroAlloc.StateMachine.StateMachineAttribute";
+
+    // Constants used in Parse() — implemented in Task 5
+#pragma warning disable IDE0051 // Remove unused private members
     private const string TransitionAttributeMetadataName = "TransitionAttribute`2";
     private const string TerminalAttributeMetadataName   = "TerminalAttribute`1";
+#pragma warning restore IDE0051
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -26,6 +30,10 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         {
             foreach (var diag in model.Diagnostics)
                 ctx.ReportDiagnostic(diag);
+
+            // Do not emit source if any diagnostic is a hard error — the model is invalid
+            if (model.Diagnostics.Any(static d => d.Severity == Microsoft.CodeAnalysis.DiagnosticSeverity.Error))
+                return;
 
             var source = StateMachineWriter.Write(model);
             var hintName = model.Namespace is null
