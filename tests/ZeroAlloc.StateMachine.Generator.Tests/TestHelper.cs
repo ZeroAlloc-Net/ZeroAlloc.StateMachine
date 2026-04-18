@@ -9,10 +9,13 @@ namespace ZeroAlloc.StateMachine.Generator.Tests;
 
 internal static class TestHelper
 {
+    private static readonly CSharpParseOptions ParseOptions =
+        CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
+
     public static Task Verify<TGenerator>(string source)
         where TGenerator : IIncrementalGenerator, new()
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
 
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
@@ -31,6 +34,7 @@ internal static class TestHelper
         var generator = new TGenerator();
         var driver = CSharpGeneratorDriver
             .Create(generator)
+            .WithUpdatedParseOptions(ParseOptions)
             .RunGenerators(compilation);
 
         return VerifyXunit.Verifier.Verify(driver).UseDirectory("Snapshots");
@@ -39,7 +43,7 @@ internal static class TestHelper
     public static Task<IReadOnlyList<Diagnostic>> GetDiagnostics<TGenerator>(string source)
         where TGenerator : IIncrementalGenerator, new()
     {
-        var syntaxTree = CSharpSyntaxTree.ParseText(source);
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
         var references = AppDomain.CurrentDomain.GetAssemblies()
             .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
             .Select(a => MetadataReference.CreateFromFile(a.Location))
@@ -55,7 +59,9 @@ internal static class TestHelper
             options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
 
         var generator = new TGenerator();
-        var driver = CSharpGeneratorDriver.Create(generator).RunGenerators(compilation);
+        var driver = CSharpGeneratorDriver.Create(generator)
+            .WithUpdatedParseOptions(ParseOptions)
+            .RunGenerators(compilation);
         var result = driver.GetRunResult();
 
         // Capture generator-reported diagnostics AND post-generation compilation errors
