@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ZeroAlloc.StateMachine/ZeroAlloc.StateMachine.csproj" />
+    <Project Path="src/ZeroAlloc.StateMachine.Generator/ZeroAlloc.StateMachine.Generator.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ZeroAlloc.StateMachine.Tests/ZeroAlloc.StateMachine.Tests.csproj" />
+    <Project Path="tests/ZeroAlloc.StateMachine.Generator.Tests/ZeroAlloc.StateMachine.Generator.Tests.csproj" />
+  </Folder>
+</Solution>
