@@ -51,5 +51,9 @@ partial class OrderMachine
         }
     }
 
-    // Guards and entry/exit hooks — implement in the partial class
+    // Guards and entry/exit hooks — implement in the consuming partial class
+    partial void OnExitIdle(Trigger on);
+    partial void OnExitPending(Trigger on);
+    partial void OnEnterPending(State from);
+    partial void OnEnterDone(State from);
 }

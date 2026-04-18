@@ -136,9 +136,25 @@ internal static class StateMachineWriter
 
     private static void WritePartialStubs(StringBuilder sb, StateMachineModel m)
     {
-        // Detailed stubs emitted in Task 7
-        // Emit minimal stubs now so the generated code compiles
-        sb.AppendLine($"    // Guards and entry/exit hooks — implement in the partial class");
+        var st = m.StateTypeShort;
+        var tr = m.TriggerTypeShort;
+
+        sb.AppendLine($"    // Guards and entry/exit hooks — implement in the consuming partial class");
+
+        // Guard stubs — one per guarded transition
+        var guardedTransitions = m.Transitions.Where(static t => t.HasGuard).ToArray();
+        foreach (var t in guardedTransitions)
+            sb.AppendLine($"    partial bool Guard{t.On}({st} from, {tr} on);");
+
+        // OnExit stubs — one per unique From state
+        var exitStates = m.Transitions.Select(static t => t.From).Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var s in exitStates)
+            sb.AppendLine($"    partial void OnExit{s}({tr} on);");
+
+        // OnEnter stubs — one per unique To state
+        var enterStates = m.Transitions.Select(static t => t.To).Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var s in enterStates)
+            sb.AppendLine($"    partial void OnEnter{s}({st} from);");
     }
 
     // ── Concurrent (Task 8) ───────────────────────────────────────────────────
