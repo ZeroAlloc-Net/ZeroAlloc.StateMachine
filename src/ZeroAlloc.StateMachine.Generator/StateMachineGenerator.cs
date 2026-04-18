@@ -56,6 +56,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var (transitions, terminalStates, stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
             = CollectAttributes(type);
 
+        if (transitions.Count == 0) return null; // No transitions found — not a valid state machine
         if (stateTypeFqn is null || triggerTypeFqn is null) return null;
         if (string.IsNullOrEmpty(initialState)) return null;
 
@@ -146,7 +147,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             }
         }
 
-        return value.Value?.ToString();
+        return null; // Unresolvable enum value — caller will skip this transition
     }
 
     private static void AnalyzeDiagnostics(
