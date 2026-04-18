@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <PackageReference Include="FluentAssertions" Version="6.12.0" />
+    <!-- Generator as Analyzer: generated code compiles as part of this project -->
+    <ProjectReference Include="..\..\src\ZeroAlloc.StateMachine\ZeroAlloc.StateMachine.csproj" />
+    <ProjectReference Include="..\..\src\ZeroAlloc.StateMachine.Generator\ZeroAlloc.StateMachine.Generator.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="true" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="FluentAssertions" />
+  </ItemGroup>
+</Project>
