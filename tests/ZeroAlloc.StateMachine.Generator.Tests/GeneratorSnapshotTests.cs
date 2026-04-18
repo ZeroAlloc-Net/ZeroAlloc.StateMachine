@@ -46,4 +46,26 @@ public class GeneratorSnapshotTests
 
         return TestHelper.Verify<StateMachineGenerator>(source);
     }
+
+    [Fact]
+    public Task ConcurrentMachine_EmitsInterlockedCompareExchange()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+
+            namespace Resilience;
+
+            public enum CbState   { Closed, Open, HalfOpen }
+            public enum CbTrigger { Trip, Probe, Reset }
+
+            [StateMachine(InitialState = nameof(CbState.Closed), Concurrent = true)]
+            [Transition<CbState, CbTrigger>(From = CbState.Closed,   On = CbTrigger.Trip,  To = CbState.Open)]
+            [Transition<CbState, CbTrigger>(From = CbState.Open,     On = CbTrigger.Probe, To = CbState.HalfOpen)]
+            [Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Reset, To = CbState.Closed)]
+            [Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
+            public partial class CircuitBreakerFsm { }
+            """;
+
+        return TestHelper.Verify<StateMachineGenerator>(source);
+    }
 }

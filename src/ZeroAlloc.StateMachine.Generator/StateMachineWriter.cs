@@ -171,7 +171,88 @@ internal static class StateMachineWriter
 
     private static void WriteConcurrentBody(StringBuilder sb, StateMachineModel m)
     {
-        // Implemented in Task 8
-        sb.AppendLine($"    // Concurrent mode — implemented in Task 8");
+        var st = m.StateTypeShort;
+        var tr = m.TriggerTypeShort;
+
+        // Volatile long state field
+        sb.AppendLine($"    private long _state = (long){st}.{m.InitialState};");
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Current state (thread-safe read via <see cref=\"System.Threading.Volatile\"/>).</summary>");
+        sb.AppendLine($"    public {st} Current => ({st})System.Threading.Volatile.Read(ref _state);");
+        sb.AppendLine();
+
+        WriteConcurrentTryFire(sb, m);
+
+        // OnExit + OnEnter dispatchers — same as non-concurrent
+        WriteOnExitDispatcher(sb, m);
+        sb.AppendLine();
+        WriteOnEnterDispatcher(sb, m);
+        sb.AppendLine();
+
+        // Partial stubs — no guards in concurrent mode
+        WriteConcurrentPartialStubs(sb, m);
+    }
+
+    private static void WriteConcurrentTryFire(StringBuilder sb, StateMachineModel m)
+    {
+        var st = m.StateTypeShort;
+        var tr = m.TriggerTypeShort;
+
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Attempt to fire <paramref name=\"trigger\"/> atomically via <c>Interlocked.CompareExchange</c>.");
+        sb.AppendLine($"    /// Spins until the CAS succeeds or no matching transition exists.");
+        sb.AppendLine($"    /// Returns <c>true</c> if the transition occurred.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    public bool TryFire({tr} trigger)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        while (true)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            var current = ({st})System.Threading.Volatile.Read(ref _state);");
+        sb.AppendLine($"            {st}? next = (current, trigger) switch");
+        sb.AppendLine($"            {{");
+
+        foreach (var t in m.Transitions)
+            sb.AppendLine($"                ({st}.{t.From}, {tr}.{t.On}) => ({st}?){st}.{t.To},");
+
+        sb.AppendLine($"                _ => null");
+        sb.AppendLine($"            }};");
+        sb.AppendLine();
+        sb.AppendLine($"            if (next is null) return false;");
+        sb.AppendLine();
+        sb.AppendLine($"            if (System.Threading.Interlocked.CompareExchange(");
+        sb.AppendLine($"                    ref _state, (long)next.Value, (long)current) == (long)current)");
+        sb.AppendLine($"            {{");
+        sb.AppendLine($"                OnExit(current, trigger);");
+        sb.AppendLine($"                OnEnter(next.Value, current);");
+        sb.AppendLine($"                return true;");
+        sb.AppendLine($"            }}");
+        sb.AppendLine($"            // Lost CAS race — retry with fresh current");
+        sb.AppendLine($"        }}");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+    }
+
+    private static void WriteConcurrentPartialStubs(StringBuilder sb, StateMachineModel m)
+    {
+        var st = m.StateTypeShort;
+        var tr = m.TriggerTypeShort;
+
+        sb.AppendLine();
+        sb.AppendLine($"    // ── Partial hooks — implement what you need, leave the rest ─────────────");
+        sb.AppendLine($"    // Note: guards are not generated in concurrent mode (TOCTOU risk).");
+
+        var exitStates = m.Transitions.Select(static t => t.From).Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var s in exitStates)
+        {
+            sb.AppendLine($"    /// <summary>Called before leaving <c>{s}</c>. May be called from multiple threads.</summary>");
+            sb.AppendLine($"    partial void OnExit{s}({tr} on);");
+        }
+
+        var enterStates = m.Transitions.Select(static t => t.To).Distinct(StringComparer.Ordinal).ToArray();
+        foreach (var s in enterStates)
+        {
+            sb.AppendLine($"    /// <summary>Called after entering <c>{s}</c>. May be called from multiple threads.</summary>");
+            sb.AppendLine($"    partial void OnEnter{s}({st} from);");
+        }
     }
 }
