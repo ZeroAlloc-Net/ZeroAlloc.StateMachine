@@ -58,8 +58,10 @@ internal static class TestHelper
         var driver = CSharpGeneratorDriver.Create(generator).RunGenerators(compilation);
         var result = driver.GetRunResult();
 
+        // Capture generator-reported diagnostics AND post-generation compilation errors
+        var updatedCompilation = compilation.AddSyntaxTrees(result.GeneratedTrees);
         var diags = result.Diagnostics
-            .Concat(result.GeneratedTrees.SelectMany(t => t.GetDiagnostics()))
+            .Concat(updatedCompilation.GetDiagnostics())
             .ToList();
 
         return Task.FromResult<IReadOnlyList<Diagnostic>>(diags);

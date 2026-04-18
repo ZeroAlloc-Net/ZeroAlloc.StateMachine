@@ -2,8 +2,6 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <!-- SourceGenerators.Testing.XUnit 1.1.2 pins workspaces to 3.8.0; we override and suppress the mismatch warning -->
-    <NoWarn>$(NoWarn);NU1608</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.9.0" />
@@ -11,8 +9,7 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <PackageReference Include="FluentAssertions" Version="6.12.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.8.0" />
-    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.SourceGenerators.Testing.XUnit" Version="1.1.2" />
-    <PackageReference Include="Verify.Xunit" Version="28.6.0" />
+<PackageReference Include="Verify.Xunit" Version="28.6.0" />
     <ProjectReference Include="..\..\src\ZeroAlloc.StateMachine\ZeroAlloc.StateMachine.csproj" />
     <ProjectReference Include="..\..\src\ZeroAlloc.StateMachine.Generator\ZeroAlloc.StateMachine.Generator.csproj" />
   </ItemGroup>
