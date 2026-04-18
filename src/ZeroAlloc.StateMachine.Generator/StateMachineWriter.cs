@@ -187,7 +187,6 @@ internal static class StateMachineWriter
         WriteOnExitDispatcher(sb, m);
         sb.AppendLine();
         WriteOnEnterDispatcher(sb, m);
-        sb.AppendLine();
 
         // Partial stubs — no guards in concurrent mode
         WriteConcurrentPartialStubs(sb, m);
@@ -244,7 +243,7 @@ internal static class StateMachineWriter
         var exitStates = m.Transitions.Select(static t => t.From).Distinct(StringComparer.Ordinal).ToArray();
         foreach (var s in exitStates)
         {
-            sb.AppendLine($"    /// <summary>Called before leaving <c>{s}</c>. May be called from multiple threads.</summary>");
+            sb.AppendLine($"    /// <summary>Called after leaving <c>{s}</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>");
             sb.AppendLine($"    partial void OnExit{s}({tr} on);");
         }
 

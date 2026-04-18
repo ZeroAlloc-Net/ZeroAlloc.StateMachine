@@ -1,0 +1,44 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+[Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
+public partial class CircuitBreakerFsm { }
+                     ^^^^^^^^^^^^^^^^^
+*/
+ : (12,21)-(12,38),
+      Message: Trigger 'Probe' on 'CircuitBreakerFsm' appears in only one transition. Verify this is not a typo.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0003,
+        Title: Single-use trigger,
+        Description: If intentional, suppress with #pragma warning disable ZSM0003.,
+        MessageFormat: Trigger '{0}' on '{1}' appears in only one transition. Verify this is not a typo.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+[Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
+public partial class CircuitBreakerFsm { }
+                     ^^^^^^^^^^^^^^^^^
+*/
+ : (12,21)-(12,38),
+      Message: Trigger 'Reset' on 'CircuitBreakerFsm' appears in only one transition. Verify this is not a typo.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0003,
+        Title: Single-use trigger,
+        Description: If intentional, suppress with #pragma warning disable ZSM0003.,
+        MessageFormat: Trigger '{0}' on '{1}' appears in only one transition. Verify this is not a typo.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -63,14 +63,13 @@ partial class CircuitBreakerFsm
         }
     }
 
-
     // ── Partial hooks — implement what you need, leave the rest ─────────────
     // Note: guards are not generated in concurrent mode (TOCTOU risk).
-    /// <summary>Called before leaving <c>Closed</c>. May be called from multiple threads.</summary>
+    /// <summary>Called after leaving <c>Closed</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>
     partial void OnExitClosed(CbTrigger on);
-    /// <summary>Called before leaving <c>Open</c>. May be called from multiple threads.</summary>
+    /// <summary>Called after leaving <c>Open</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>
     partial void OnExitOpen(CbTrigger on);
-    /// <summary>Called before leaving <c>HalfOpen</c>. May be called from multiple threads.</summary>
+    /// <summary>Called after leaving <c>HalfOpen</c> (fires after the CAS succeeds). May be called from multiple threads.</summary>
     partial void OnExitHalfOpen(CbTrigger on);
     /// <summary>Called after entering <c>Open</c>. May be called from multiple threads.</summary>
     partial void OnEnterOpen(CbState from);

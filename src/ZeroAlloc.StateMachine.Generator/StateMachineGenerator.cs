@@ -66,7 +66,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var isStruct = type.TypeKind == TypeKind.Struct;
         var diagnostics = new List<Diagnostic>();
 
-        AnalyzeDiagnostics(initialState, transitions, terminalStates, stateTypeShort!, type, diagnostics);
+        AnalyzeDiagnostics(initialState, transitions, terminalStates, stateTypeShort!, type, isStruct, concurrent, diagnostics);
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
@@ -156,8 +156,109 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         IReadOnlyList<string> terminalStates,
         string stateTypeShort,
         INamedTypeSymbol type,
+        bool isStruct,
+        bool concurrent,
         List<Diagnostic> diagnostics)
     {
-        // Implemented in Task 9
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        if (isStruct && concurrent)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.StructConcurrentNotSupported, location,
+                type.Name));
+            return;
+        }
+
+        var allFromStates = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        var allToStates   = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        var allTriggers   = new string[transitions.Count];
+
+        for (var i = 0; i < transitions.Count; i++)
+        {
+            allFromStates.Add(transitions[i].From);
+            allToStates.Add(transitions[i].To);
+            allTriggers[i] = transitions[i].On;
+        }
+
+        AnalyzeReachability(initialState, terminalStates, stateTypeShort, type, location, allFromStates, allToStates, diagnostics);
+        AnalyzeTriggerUsage(type, location, allTriggers, diagnostics);
+    }
+
+    private static void AnalyzeReachability(
+        string initialState,
+        IReadOnlyList<string> terminalStates,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        Location location,
+        System.Collections.Generic.HashSet<string> allFromStates,
+        System.Collections.Generic.HashSet<string> allToStates,
+        List<Diagnostic> diagnostics)
+    {
+        // ZSM0001: states that appear in From but never in To and are not InitialState → unreachable
+        foreach (var fromState in allFromStates)
+        {
+            if (!allToStates.Contains(fromState) &&
+                !string.Equals(fromState, initialState, StringComparison.Ordinal))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.UnreachableState, location,
+                    fromState, type.Name));
+            }
+        }
+
+        // ZSM0002: states that appear in To but never in From and are not declared [Terminal]
+        var terminalSet = new System.Collections.Generic.HashSet<string>(terminalStates, StringComparer.Ordinal);
+        foreach (var toState in allToStates)
+        {
+            if (!allFromStates.Contains(toState) && !terminalSet.Contains(toState))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.SinkState, location,
+                    toState, type.Name, stateTypeShort));
+            }
+        }
+    }
+
+    private static void AnalyzeTriggerUsage(
+        INamedTypeSymbol type,
+        Location location,
+        string[] allTriggers,
+        List<Diagnostic> diagnostics)
+    {
+        // ZSM0003: triggers used exactly once (only meaningful if more than one trigger is used total)
+        var triggerCounts = new System.Collections.Generic.Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var trigger in allTriggers)
+        {
+            if (triggerCounts.TryGetValue(trigger, out var count))
+                triggerCounts[trigger] = count + 1;
+            else
+                triggerCounts[trigger] = 1;
+        }
+
+        // Only flag single-use triggers when at least one other trigger appears more than once
+        // (a typo tends to appear once while the "real" trigger appears multiple times)
+        var anyMultiUse = false;
+        foreach (var kv in triggerCounts)
+        {
+            if (kv.Value > 1)
+            {
+                anyMultiUse = true;
+                break;
+            }
+        }
+
+        if (anyMultiUse)
+        {
+            foreach (var kv in triggerCounts)
+            {
+                if (kv.Value == 1)
+                {
+                    diagnostics.Add(Diagnostic.Create(
+                        StateMachineDiagnostics.SingleUseTrigger, location,
+                        kv.Key, type.Name));
+                }
+            }
+        }
     }
 }
