@@ -40,3 +40,29 @@ machine.Current;                 // Pending
 | [Testing](testing.md) | Unit-test state machines without mocking |
 | [AOT & Trimming](aot.md) | Native AOT compatibility |
 | [Performance](performance.md) | Benchmark results and allocation profile |
+
+### Core Concepts
+
+| Page | Description |
+|---|---|
+| [States and Triggers](core-concepts/states-and-triggers.md) | Enums as states and triggers, naming conventions |
+| [Transitions](core-concepts/transitions.md) | Directed edges, `TryFire`, ordering, entry/exit contract |
+| [Concurrent Mode](core-concepts/concurrent-mode.md) | CAS loop, `Volatile.Read`, hook ordering, guard restrictions |
+
+### Guides
+
+| Page | Description |
+|---|---|
+| [Guards](guides/guards.md) | Block transitions at runtime with `When = true` |
+| [Entry and Exit Actions](guides/entry-exit-actions.md) | React to state crossings with `partial void` hooks |
+| [Terminal States](guides/terminal-states.md) | Intentional sinks and the `[Terminal]` attribute |
+| [Circuit Breaker Example](guides/circuit-breaker.md) | Real-world use: thread-safe circuit breaker |
+
+### Diagnostics
+
+| ID | Severity | Description |
+|---|---|---|
+| [ZSM0001](diagnostics/ZSM0001.md) | Warning | Unreachable state |
+| [ZSM0002](diagnostics/ZSM0002.md) | Warning | Unintentional sink state |
+| [ZSM0003](diagnostics/ZSM0003.md) | Warning | Single-use trigger (possible typo) |
+| [ZSM0004](diagnostics/ZSM0004.md) | Error | Concurrent mode on a struct |
