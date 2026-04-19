@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.0...v1.0.1) (2026-04-19)
+
+
+### Documentation
+
+* fill in all stub documentation pages ([5132349](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/5132349e2ce1af21a59a201cb321813eb309fd3d))
+
 ## 1.0.0 (2026-04-18)
 
 
