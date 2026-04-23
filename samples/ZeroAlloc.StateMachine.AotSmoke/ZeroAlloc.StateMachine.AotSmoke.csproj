@@ -8,6 +8,12 @@
     <OptimizationPreference>Size</OptimizationPreference>
 
     <WarningsAsErrors>$(WarningsAsErrors);IL2026;IL2067;IL2075;IL2091;IL3050;IL3051</WarningsAsErrors>
+    <!--
+      ZSM0003 fires when a trigger appears in only one transition — a sensible
+      lint for large real-world state machines but noisy for a minimal CB sample
+      where Probe and Reset legitimately appear just once.
+    -->
+    <NoWarn>$(NoWarn);ZSM0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
