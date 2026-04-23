@@ -63,3 +63,31 @@ jobs:
         with:
           name: test-results
           path: "**/*.trx"
+
+  aot-smoke:
+    runs-on: ubuntu-latest
+    # Publishes samples/ZeroAlloc.StateMachine.AotSmoke with PublishAot=true.
+    # Exercises BOTH generator emission shapes — plain switch-expression and the
+    # Concurrent=true volatile+CAS variant — so any ILC warning on either path
+    # fails the build.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Install AOT native toolchain
+        run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+
+      - name: Restore
+        run: dotnet restore samples/ZeroAlloc.StateMachine.AotSmoke/ZeroAlloc.StateMachine.AotSmoke.csproj
+
+      - name: Publish AOT
+        run: dotnet publish samples/ZeroAlloc.StateMachine.AotSmoke/ZeroAlloc.StateMachine.AotSmoke.csproj -r linux-x64 -c Release -o ./aot-out
+
+      - name: Run AOT binary
+        run: ./aot-out/ZeroAlloc.StateMachine.AotSmoke

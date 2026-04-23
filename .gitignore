@@ -5,3 +5,6 @@ obj/
 artifacts/
 TestResults/
 *.trx
+
+# BenchmarkDotNet output
+BenchmarkDotNet.Artifacts/
