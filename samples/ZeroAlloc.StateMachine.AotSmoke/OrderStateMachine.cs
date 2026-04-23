@@ -2,8 +2,10 @@ using ZeroAlloc.StateMachine;
 
 namespace ZeroAlloc.StateMachine.AotSmoke;
 
+#pragma warning disable MA0048 // co-locating the state/trigger enums with the machine is fine for a sample
 public enum OrderState { Idle, Pending, Processing, Shipped, Cancelled }
 public enum OrderTrigger { Submit, Pay, Ship, Cancel }
+#pragma warning restore MA0048
 
 [StateMachine(InitialState = nameof(OrderState.Idle))]
 [Transition<OrderState, OrderTrigger>(From = OrderState.Idle,       On = OrderTrigger.Submit, To = OrderState.Pending)]
