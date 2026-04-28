@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.1...v1.0.2) (2026-04-28)
+
+
+### Documentation
+
+* add GitHub Sponsors badge to README ([93ba23d](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/93ba23d736f027f76aa0965f235182612200777b))
+* add GitHub Sponsors badge to README ([324f0c1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/324f0c1535b2ac32ffb989a2f776da90b454f8b4))
+
 ## [1.0.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.0...v1.0.1) (2026-04-19)
 
 
