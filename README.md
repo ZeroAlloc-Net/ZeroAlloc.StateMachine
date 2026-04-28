@@ -1,5 +1,8 @@
 # ZeroAlloc.StateMachine
 
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
+
+
 Source-generated, zero-allocation finite state machines for .NET.
 
 Add `[StateMachine]` and `[Transition<TState, TTrigger>]` attributes to a `partial` class or struct. A Roslyn source generator emits a `TryFire(TTrigger)` method as a `switch` expression over `(TState, TTrigger)` tuples — no dictionary, no delegate dispatch, no heap allocation on the transition path. AOT-safe.
