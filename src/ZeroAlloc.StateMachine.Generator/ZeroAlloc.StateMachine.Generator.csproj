@@ -9,6 +9,13 @@
     <Description>Source generator for ZeroAlloc.StateMachine. Consumed automatically via ZeroAlloc.StateMachine.</Description>
     <Version>0.0.0-local</Version>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <!--
+      The generator is bundled into ZeroAlloc.StateMachine's NuGet package via the
+      IncludeGeneratorInPackage target in the main library's csproj. Publishing a
+      separate ZeroAlloc.StateMachine.Generator package would just produce a broken
+      stand-alone nupkg (DLL under lib/, not analyzers/), so suppress packing here.
+    -->
+    <IsPackable>false</IsPackable>
     <!-- Suppress RS2008: we use custom DiagnosticDescriptors with SupportedDiagnostics -->
     <NoWarn>$(NoWarn);RS2008</NoWarn>
   </PropertyGroup>
