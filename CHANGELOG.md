@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.3...v1.0.4) (2026-04-30)
+
+
+### Bug Fixes
+
+* stop publishing broken stand-alone generator nupkg ([a9bfcf1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/a9bfcf1cf6392498f93d778a620eb07623dba78a))
+* stop publishing broken stand-alone generator nupkg ([6f29289](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/6f29289e2a31a6d34fcf8682c5ee6d5169445dd1))
+
 ## [1.0.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.2...v1.0.3) (2026-04-29)
 
 
