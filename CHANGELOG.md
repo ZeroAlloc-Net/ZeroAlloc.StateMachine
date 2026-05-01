@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.4...v1.1.0) (2026-05-01)
+
+
+### Features
+
+* lock public API surface (PublicApiAnalyzers + api-compat gate) ([#13](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/13)) ([7512258](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/7512258b9aae0a1d1e6982e1dda83ccc79ed5455))
+
 ## [1.0.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.3...v1.0.4) (2026-04-30)
 
 
