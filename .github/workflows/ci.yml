@@ -91,3 +91,9 @@ jobs:
 
       - name: Run AOT binary
         run: ./aot-out/ZeroAlloc.StateMachine.AotSmoke
+
+  api-compat:
+    uses: ZeroAlloc-Net/.github/.github/workflows/api-compat.yml@main
+    with:
+      package-id: ZeroAlloc.StateMachine
+      csproj-path: src/ZeroAlloc.StateMachine/ZeroAlloc.StateMachine.csproj
