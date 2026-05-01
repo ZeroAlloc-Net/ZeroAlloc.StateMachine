@@ -1,0 +1,21 @@
+#nullable enable
+ZeroAlloc.StateMachine.StateMachineAttribute
+ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.get -> bool
+ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.init -> void
+ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.get -> string!
+ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.init -> void
+ZeroAlloc.StateMachine.StateMachineAttribute.StateMachineAttribute() -> void
+ZeroAlloc.StateMachine.TerminalAttribute<TState>
+ZeroAlloc.StateMachine.TerminalAttribute<TState>.State.get -> TState
+ZeroAlloc.StateMachine.TerminalAttribute<TState>.State.init -> void
+ZeroAlloc.StateMachine.TerminalAttribute<TState>.TerminalAttribute() -> void
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.From.get -> TState
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.From.init -> void
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.On.get -> TTrigger
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.On.init -> void
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.To.get -> TState
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.To.init -> void
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.TransitionAttribute() -> void
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.When.get -> bool
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.When.init -> void
