@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.1.0...v1.1.1) (2026-05-03)
+
+
+### Bug Fixes
+
+* **release-please:** drop pre-major flags (package is post-1.0) ([#15](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/15)) ([0c0ecbc](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/0c0ecbc4b969fde013c6399b93c5260c88cf1a5b))
+
 ## [1.1.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.0.4...v1.1.0) (2026-05-01)
 
 
