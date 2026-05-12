@@ -175,16 +175,16 @@ State is stored as `volatile long`. `TryFire` uses a CAS loop — safe for concu
 
 ## Documentation
 
-Full docs live in [`docs/`](docs/index.md):
+Full docs live in [`docs/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/index.md):
 
-- [Getting Started](docs/getting-started.md)
-- [Attribute Reference](docs/attributes.md)
-- [Source Generator](docs/source-generator.md)
-- [Testing](docs/testing.md)
-- [AOT & Trimming](docs/aot.md)
-- [Performance](docs/performance.md)
-- Core concepts: [States & Triggers](docs/core-concepts/states-and-triggers.md) · [Transitions](docs/core-concepts/transitions.md) · [Concurrent Mode](docs/core-concepts/concurrent-mode.md)
-- Guides: [Guards](docs/guides/guards.md) · [Entry/Exit Actions](docs/guides/entry-exit-actions.md) · [Terminal States](docs/guides/terminal-states.md) · [Circuit Breaker Example](docs/guides/circuit-breaker.md)
+- [Getting Started](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/getting-started.md)
+- [Attribute Reference](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/attributes.md)
+- [Source Generator](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/source-generator.md)
+- [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/testing.md)
+- [AOT & Trimming](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/aot.md)
+- [Performance](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md)
+- Core concepts: [States & Triggers](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/states-and-triggers.md) · [Transitions](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/transitions.md) · [Concurrent Mode](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/concurrent-mode.md)
+- Guides: [Guards](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/guards.md) · [Entry/Exit Actions](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/entry-exit-actions.md) · [Terminal States](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/terminal-states.md) · [Circuit Breaker Example](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/circuit-breaker.md)
 
 ---
 
