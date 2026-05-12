@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.1.1...v1.1.2) (2026-05-12)
+
+
+### Bug Fixes
+
+* **readme:** absolute GitHub URLs so nuget.org links resolve ([#20](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/20)) ([d70724c](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/d70724c9274767952666a95f941a254962662e94))
+
 ## [1.1.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.1.0...v1.1.1) (2026-05-03)
 
 
