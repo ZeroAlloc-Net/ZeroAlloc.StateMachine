@@ -22,7 +22,9 @@ _Last refreshed: 2026-05-13_
 | Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
 | Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
 
-The 24 B allocations in ZA's "valid" rows are from the per-iteration `new OrderMachine()` reset, not from `TryFire`. Stateless allocates because every `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — the dispatch is a single jump table lookup with no allocation.
+The 24 B in ZA's "valid" rows is from the per-iteration `new OrderMachine()` reset, not from `TryFire`. The Stateless row's 7,272 B is two things combined: each `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects, **and** the per-iteration `BuildStatelessOrder()` reset rebuilds the configuration (`new StateMachine<,>(initial)` plus three `Configure().Permit()` calls — each one allocating dictionary entries).
+
+This is the apples-to-apples comparison for cyclic state machines — a per-request handler in a web app, or a fresh circuit-breaker per stream. Both libraries pay a "reset" cost in this workload. ZA's reset is one struct/class allocation because configuration is resolved at compile time; Stateless's includes the full fluent-configuration rebuild because configuration is runtime. The dispatch portion alone (excluding the rebuild) is roughly an order of magnitude smaller on the Stateless side but still measurably slower than ZA's `switch`-expression `TryFire`.
 <!-- BENCH:END -->
 
 ## Self-benchmark
