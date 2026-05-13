@@ -37,6 +37,21 @@ machine.TryFire(Trigger.Submit); // false — Done has no outgoing transitions
 
 ---
 
+## Performance
+
+Head-to-head vs [Stateless](https://github.com/dotnet-state-machine/stateless) 5.15 (the de-facto state-machine library in .NET). .NET 10.0.7, BenchmarkDotNet v0.14.0.
+
+| Operation | Stateless | ZA.StateMachine | Speedup |
+|---|---:|---:|---:|
+| Fire valid (3-step cycle) | 4,495 ns / 7,272 B | **36 ns / 24 B** | **124× faster, 303× less alloc** |
+| Fire invalid | 27 ns / 24 B | **1.6 ns / 0 B** | **17× faster, 0 B alloc** |
+| Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
+| Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
+
+Stateless walks a `Dictionary<TTrigger, StateRepresentation>` on every fire and allocates trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — single jump-table lookup, zero allocation.
+
+Full methodology + self-benchmark: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md).
+
 ## Features
 
 | Feature | Notes |

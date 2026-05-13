@@ -15,5 +15,6 @@
                       OutputItemType="Analyzer"
                       ReferenceOutputAssembly="true" />
     <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="Stateless" Version="5.15.0" />
   </ItemGroup>
 </Project>

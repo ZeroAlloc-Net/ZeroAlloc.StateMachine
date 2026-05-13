@@ -8,7 +8,24 @@ sidebar_position: 7
 
 ZeroAlloc.StateMachine is designed so that `TryFire` allocates **zero bytes** on the managed heap on every call. All benchmarks are measured with [BenchmarkDotNet](https://benchmarkdotnet.org/) (v0.14.0, .NET 10, Release mode).
 
-## Results
+## Head-to-head vs Stateless
+
+<!-- BENCH:START -->
+_Last refreshed: 2026-05-13_
+
+[Stateless](https://github.com/dotnet-state-machine/stateless) is the de-facto state-machine library in .NET — class-based, fluent configuration, runtime trigger dispatch. ZA's source-generated switch dispatch dominates every comparable scenario.
+
+| Operation | Stateless | ZA.StateMachine | Speedup |
+|---|---:|---:|---:|
+| Fire valid (3-step cycle) | 4,495 ns / 7,272 B | **36 ns / 24 B** | **124× faster, 303× less alloc** |
+| Fire invalid | 27 ns / 24 B | **1.6 ns / 0 B** | **17× faster, 0 B alloc** |
+| Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
+| Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
+
+The 24 B allocations in ZA's "valid" rows are from the per-iteration `new OrderMachine()` reset, not from `TryFire`. Stateless allocates because every `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — the dispatch is a single jump table lookup with no allocation.
+<!-- BENCH:END -->
+
+## Self-benchmark
 
 | Benchmark | Mean | Allocated |
 |---|---:|---:|
