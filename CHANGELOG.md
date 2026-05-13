@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.1.2...v1.2.0) (2026-05-13)
+
+
+### Features
+
+* **benchmarks:** add Stateless as competitor ([#22](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/22)) ([596141f](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/596141fd7c6bc878b2480a19f8d098de91392d2e))
+
+
+### Documentation
+
+* **performance:** clarify that Fire-valid row includes Stateless config rebuild ([#24](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/24)) ([5efce95](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/5efce95bf46b7bc220734da08c31980c20e1f411))
+
 ## [1.1.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.1.1...v1.1.2) (2026-05-12)
 
 
