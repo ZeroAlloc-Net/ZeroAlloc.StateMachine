@@ -296,4 +296,131 @@ public class DiagnosticTests
         var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
         diagnostics.Should().Contain(d => d.Id == "ZSM0011");
     }
+
+    [Fact]
+    public async Task ZSM0012_FiresWhen_AfterMs_OnNonConcurrentClass()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B }
+public enum T { Go }
+[StateMachine(InitialState = ""A"")]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, AfterMs = 1000)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0012", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0013_FiresWhen_AfterMs_IsNegative()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B }
+public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, AfterMs = -1)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0013", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0014_FiresWhen_BothStateMachineAndGroup()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"")]
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0014", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0015_FiresWhen_DuplicatePartNames()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, Part = ""P"")]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0015", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0016_FiresWhen_TransitionPart_IsUnknown()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, Part = ""DoesNotExist"")]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0016", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0017_FiresWhen_GroupHasNoParts()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+[StateMachineGroup]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0017", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0018_FiresWhen_CompositeInGroup()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+public enum SubS { X, Y }
+[StateMachine(InitialState = ""X"")]
+[Transition<SubS, T>(From = SubS.X, On = T.Go, To = SubS.Y)]
+public partial class Sub { }
+
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[CompositeState<S>(State = S.A, SubMachine = typeof(Sub))]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, Part = ""P"")]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0018", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0019_FiresWhen_UserDispose_HasWrongSignature()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, AfterMs = 1000)]
+public partial class M
+{
+    private void Dispose() { }   // wrong: private (gen wants public)
+}
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0019", StringComparison.Ordinal));
+    }
 }
