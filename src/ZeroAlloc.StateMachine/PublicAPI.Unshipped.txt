@@ -15,6 +15,14 @@ ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.get -> string!
 ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute.StateMachineAttribute() -> void
+ZeroAlloc.StateMachine.StateMachineGroupAttribute
+ZeroAlloc.StateMachine.StateMachineGroupAttribute.StateMachineGroupAttribute() -> void
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.InitialState.get -> TState
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.InitialState.init -> void
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.Name.get -> string!
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.Name.init -> void
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.StateMachinePartAttribute() -> void
 ZeroAlloc.StateMachine.TerminalAttribute<TState>
 ZeroAlloc.StateMachine.TerminalAttribute<TState>.State.get -> TState
 ZeroAlloc.StateMachine.TerminalAttribute<TState>.State.init -> void
