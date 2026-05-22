@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.2.0...v1.3.0) (2026-05-22)
+
+
+### Features
+
+* composite states + shallow history (backlog B1+B2) ([#25](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/25)) ([d0374b5](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/d0374b59f3cc6b029721b8e32d48600da7b99ef9))
+
 ## [1.2.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.1.2...v1.2.0) (2026-05-13)
 
 
