@@ -120,6 +120,25 @@ disposable.
 
 ---
 
+## Caveats
+
+**The initial state is not auto-armed.** Timers are armed only when the
+generated `TryFire` advances the state machine *into* the source state. If
+your `InitialState` is the source of a timed transition — e.g.
+`InitialState = nameof(WatchState.Armed)` paired with
+`[Transition(From = Armed, On = Timeout, To = Tripped, AfterMs = 5000)]` —
+the timer does **not** arm at construction. Two workarounds:
+
+1. Model the machine so timed states are only ever entered via an explicit
+   transition (the recommended shape — `Idle → Armed` in the example above).
+2. Fire any trigger that lands back on the same state (a self-transition)
+   immediately after construction to arm the timer on demand.
+
+A future release may add constructor-time arming for initial-state timers;
+until then, prefer option 1.
+
+---
+
 ## Related
 
 - [Transitions](transitions.md) — the underlying `TryFire` switch model

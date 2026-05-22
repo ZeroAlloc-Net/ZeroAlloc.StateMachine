@@ -469,9 +469,7 @@ internal static class StateMachineWriter
 
             var prefix = partPrefix is null ? string.Empty : $"{partPrefix}_";
             var field = $"_timer_{prefix}{t.From}_{t.On}";
-            var triggerFqn = partPrefix is null
-                ? m.TriggerTypeFqn
-                : ResolvePartTriggerFqn(m, partPrefix);
+            var triggerFqn = m.TriggerTypeFqn;
 
             sb.AppendLine($"{indent}if ({stateExpr} == {stateTypeFqn}.{t.From})");
             sb.AppendLine($"{indent}{{");
@@ -502,13 +500,6 @@ internal static class StateMachineWriter
             sb.AppendLine($"{indent}if ({fromExpr} == {stateTypeFqn}.{t.From})");
             sb.AppendLine($"{indent}    {field}?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
         }
-    }
-
-    private static string ResolvePartTriggerFqn(StateMachineModel m, string partName)
-    {
-        // For single-machine classes this is never called (partPrefix is always null).
-        // Stub returns the model's trigger FQN; group emit (Task 11+) overrides via its own writer.
-        return m.TriggerTypeFqn;
     }
 
     private static bool HasAnyTimedEdge(StateMachineModel m) =>
