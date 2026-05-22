@@ -11,11 +11,14 @@ using System.Threading;
 public sealed class StateMachineGenerator : IIncrementalGenerator
 {
     private const string StateMachineAttributeFqn        = "ZeroAlloc.StateMachine.StateMachineAttribute";
+    private const string StateMachineGroupAttributeFqn   = "ZeroAlloc.StateMachine.StateMachineGroupAttribute";
     private const string TransitionAttributeMetadataName = "TransitionAttribute`2";
     private const string TerminalAttributeMetadataName   = "TerminalAttribute`1";
     private const string CompositeStateAttributeMetadataName = "CompositeStateAttribute`1";
     private const string HistoryStateAttributeMetadataName   = "HistoryStateAttribute`1";
     private const string StateMachineAttributeMetadataName   = "StateMachineAttribute";
+    private const string StateMachineGroupAttributeMetadataName = "StateMachineGroupAttribute";
+    private const string StateMachinePartAttributeMetadataName  = "StateMachinePartAttribute`2";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -43,6 +46,44 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 : $"{model.Namespace}_{model.ClassName}.g.cs";
             ctx.AddSource(hintName, source);
         });
+
+        var groupModels = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                StateMachineGroupAttributeFqn,
+                predicate: static (node, _) => node is ClassDeclarationSyntax,
+                transform: static (ctx, ct) => ParseGroup(ctx, ct))
+            .Where(static m => m is not null)
+            .Select(static (m, _) => m!);
+
+        context.RegisterSourceOutput(groupModels, static (ctx, model) =>
+        {
+            foreach (var diag in model.Diagnostics)
+                ctx.ReportDiagnostic(diag);
+
+            if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
+                return;
+
+            var source = StateMachineGroupWriter.Write(model);
+            var hintName = model.Namespace is null
+                ? $"{model.ClassName}.Group.g.cs"
+                : $"{model.Namespace}_{model.ClassName}.Group.g.cs";
+            ctx.AddSource(hintName, source);
+        });
+    }
+
+    private static StateMachineGroupModel? ParseGroup(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
+    {
+        if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
+        ct.ThrowIfCancellationRequested();
+
+        var ns = type.ContainingNamespace.IsGlobalNamespace
+                 ? null
+                 : type.ContainingNamespace.ToDisplayString();
+
+        return new StateMachineGroupModel(
+            ns, type.Name,
+            ImmutableArray<StateMachinePartModel>.Empty,
+            ImmutableArray<Diagnostic>.Empty);
     }
 
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
