@@ -275,6 +275,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeTriggerUsage(type, location, allTriggers, diagnostics);
         AnalyzeCompositeStates(compositeStates, historyStates, terminalStates,
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
+        AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
     }
 
     private static void AnalyzeReachability(
@@ -376,6 +377,36 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             parentTriggerTypeFqn, parentTriggerTypeShort, type, location, diagnostics);
         AnalyzeOrphanedHistory(historyStates, seenStates, stateTypeShort, type, location, diagnostics);
         AnalyzeCompositeTerminalConflict(compositeStates, terminalStates, stateTypeShort, type, location, diagnostics);
+    }
+
+    private static void AnalyzeTimedTransitions(
+        ImmutableArray<TransitionModel> transitions,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        bool concurrent,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        foreach (var t in transitions)
+        {
+            if (t.AfterMs == 0) continue;
+
+            if (t.AfterMs < 0)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.TimedTransitionInvalidDuration, location,
+                    stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+                continue;
+            }
+
+            if (!concurrent)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.TimedTransitionRequiresConcurrent, location,
+                    stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+            }
+        }
     }
 
     // ZSM0005: composite + concurrent
