@@ -33,6 +33,19 @@ partial class OrderMachine
         return true;
     }
 
+    /// <summary>Resets the machine to its declared initial state. Does NOT fire OnExit/OnEnter -- state-population only.</summary>
+    internal void Reset()
+    {
+        _state = global::MyApp.State.Idle;
+    }
+
+    /// <summary>Sets the machine to <paramref name="state"/>. Does NOT fire OnExit/OnEnter -- state-population only.</summary>
+    /// <remarks>If <paramref name="state"/> is itself a composite, the sub-FSM is reset to its initial state (shallow history contract).</remarks>
+    internal void ResetTo(global::MyApp.State state)
+    {
+        _state = state;
+    }
+
     private void OnExit(global::MyApp.State state, global::MyApp.Trigger trigger)
     {
         switch (state)

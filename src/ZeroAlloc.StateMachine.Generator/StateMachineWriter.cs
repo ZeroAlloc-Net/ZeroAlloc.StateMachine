@@ -45,7 +45,38 @@ internal static class StateMachineWriter
         sb.AppendLine($"    public {st} Current => _state;");
         sb.AppendLine();
 
-        // TryFire
+        WriteNonConcurrentTryFire(sb, m);
+
+        // Fire helper
+        sb.AppendLine($"    private bool Fire({st} from, {st} to, {tr} trigger)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        OnExit(from, trigger);");
+        sb.AppendLine($"        _state = to;");
+        sb.AppendLine($"        OnEnter(to, from);");
+        sb.AppendLine($"        return true;");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        // Reset / ResetTo — state-population mechanics (no OnExit/OnEnter)
+        WriteResetMechanics(sb, m);
+        sb.AppendLine();
+
+        // OnExit dispatcher
+        WriteOnExitDispatcher(sb, m);
+        sb.AppendLine();
+
+        // OnEnter dispatcher
+        WriteOnEnterDispatcher(sb, m);
+        sb.AppendLine();
+
+        WritePartialStubs(sb, m);
+    }
+
+    private static void WriteNonConcurrentTryFire(StringBuilder sb, StateMachineModel m)
+    {
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
+
         sb.AppendLine($"    /// <summary>");
         sb.AppendLine($"    /// Attempt to fire <paramref name=\"trigger\"/> from the current state.");
         sb.AppendLine($"    /// Returns <c>true</c> if the transition occurred; <c>false</c> if no matching transition or a guard rejected it.");
@@ -73,26 +104,6 @@ internal static class StateMachineWriter
         sb.AppendLine($"        }};");
         sb.AppendLine($"    }}");
         sb.AppendLine();
-
-        // Fire helper
-        sb.AppendLine($"    private bool Fire({st} from, {st} to, {tr} trigger)");
-        sb.AppendLine($"    {{");
-        sb.AppendLine($"        OnExit(from, trigger);");
-        sb.AppendLine($"        _state = to;");
-        sb.AppendLine($"        OnEnter(to, from);");
-        sb.AppendLine($"        return true;");
-        sb.AppendLine($"    }}");
-        sb.AppendLine();
-
-        // OnExit dispatcher
-        WriteOnExitDispatcher(sb, m);
-        sb.AppendLine();
-
-        // OnEnter dispatcher
-        WriteOnEnterDispatcher(sb, m);
-        sb.AppendLine();
-
-        WritePartialStubs(sb, m);
     }
 
     private static void WriteOnExitDispatcher(StringBuilder sb, StateMachineModel m)
@@ -182,6 +193,10 @@ internal static class StateMachineWriter
 
         WriteConcurrentTryFire(sb, m);
 
+        // Reset / ResetTo — state-population mechanics (no OnExit/OnEnter)
+        WriteResetMechanics(sb, m);
+        sb.AppendLine();
+
         // OnExit + OnEnter dispatchers — same as non-concurrent
         WriteOnExitDispatcher(sb, m);
         sb.AppendLine();
@@ -229,6 +244,51 @@ internal static class StateMachineWriter
         sb.AppendLine($"        }}");
         sb.AppendLine($"    }}");
         sb.AppendLine();
+    }
+
+    private static void WriteResetMechanics(StringBuilder sb, StateMachineModel m)
+    {
+        var st = m.StateTypeFqn;
+        var assignInitial = m.Concurrent
+            ? $"_state = (long){st}.{m.InitialState};"
+            : $"_state = {st}.{m.InitialState};";
+        var assignState = m.Concurrent
+            ? "_state = (long)state;"
+            : "_state = state;";
+
+        sb.AppendLine($"    /// <summary>Resets the machine to its declared initial state. Does NOT fire OnExit/OnEnter -- state-population only.</summary>");
+        sb.AppendLine($"    internal void Reset()");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        {assignInitial}");
+
+        // If this class itself has composites, reset each sub-FSM to its initial.
+        foreach (var c in m.CompositeStates)
+        {
+            sb.AppendLine($"        _subFsm_{c.State}.Reset();");
+        }
+
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        sb.AppendLine($"    /// <summary>Sets the machine to <paramref name=\"state\"/>. Does NOT fire OnExit/OnEnter -- state-population only.</summary>");
+        sb.AppendLine($"    /// <remarks>If <paramref name=\"state\"/> is itself a composite, the sub-FSM is reset to its initial state (shallow history contract).</remarks>");
+        sb.AppendLine($"    internal void ResetTo({st} state)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        {assignState}");
+
+        if (m.CompositeStates.Length > 0)
+        {
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var c in m.CompositeStates)
+            {
+                sb.AppendLine($"            case {st}.{c.State}: _subFsm_{c.State}.Reset(); break;");
+            }
+            sb.AppendLine($"            default: break;");
+            sb.AppendLine($"        }}");
+        }
+
+        sb.AppendLine($"    }}");
     }
 
     private static void WriteConcurrentPartialStubs(StringBuilder sb, StateMachineModel m)
