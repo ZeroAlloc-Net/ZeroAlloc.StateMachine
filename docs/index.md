@@ -48,6 +48,7 @@ machine.Current;                 // Pending
 | [States and Triggers](core-concepts/states-and-triggers.md) | Enums as states and triggers, naming conventions |
 | [Transitions](core-concepts/transitions.md) | Directed edges, `TryFire`, ordering, entry/exit contract |
 | [Concurrent Mode](core-concepts/concurrent-mode.md) | CAS loop, `Volatile.Read`, hook ordering, guard restrictions |
+| [Composite States](core-concepts/composite-states.md) | Hierarchical sub-FSMs, dispatch order, shallow history |
 
 ### Guides
 
@@ -66,3 +67,10 @@ machine.Current;                 // Pending
 | [ZSM0002](diagnostics/ZSM0002.md) | Warning | Unintentional sink state |
 | [ZSM0003](diagnostics/ZSM0003.md) | Warning | Single-use trigger (possible typo) |
 | [ZSM0004](diagnostics/ZSM0004.md) | Error | Concurrent mode on a struct |
+| [ZSM0005](diagnostics/ZSM0005.md) | Error | Composite state on a concurrent machine |
+| [ZSM0006](diagnostics/ZSM0006.md) | Error | Sub-machine is not a `[StateMachine]` |
+| [ZSM0007](diagnostics/ZSM0007.md) | Error | Sub-machine trigger type mismatch |
+| [ZSM0008](diagnostics/ZSM0008.md) | Error | Composite state value not in `TState` |
+| [ZSM0009](diagnostics/ZSM0009.md) | Error | Duplicate composite state |
+| [ZSM0010](diagnostics/ZSM0010.md) | Error | History state without composite |
+| [ZSM0011](diagnostics/ZSM0011.md) | Error | Composite state cannot also be terminal |

@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Attribute Reference
 
-ZeroAlloc.StateMachine exposes three attributes. All live in the `ZeroAlloc.StateMachine` namespace.
+ZeroAlloc.StateMachine exposes five attributes. All live in the `ZeroAlloc.StateMachine` namespace.
 
 ---
 
@@ -129,6 +129,85 @@ public partial class OrderMachine { }
 ### When to use
 
 Use `[Terminal]` for every state that is a deliberate end state (no outgoing edges by design). Without it, the generator emits a warning on every such state asking you to confirm the omission was intentional.
+
+---
+
+## `[CompositeState<TState>]`
+
+```csharp
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true)]
+public sealed class CompositeStateAttribute<TState> : Attribute
+    where TState : struct, Enum
+```
+
+Declares that a parent state owns a sub-FSM. While the machine is in `State`, triggers are dispatched to the sub-machine first; the parent's own transitions only fire if the sub-machine does not consume the trigger.
+
+### Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `State` | `TState` | yes | Parent state whose dispatch is delegated to the sub-machine. |
+| `SubMachine` | `Type` | yes | The sub-machine type — must be a `[StateMachine]` partial class with the same `TTrigger` as the parent. The sub-machine's `TState` is independent. |
+
+### Example
+
+```csharp
+[StateMachine(InitialState = nameof(LoadStep.Fetching))]
+[Transition<LoadStep, DocTrig>(From = LoadStep.Fetching, On = DocTrig.Parsed, To = LoadStep.Parsing)]
+[Terminal<LoadStep>(State = LoadStep.Parsing)]
+public partial class LoadingFsm { }
+
+[StateMachine(InitialState = nameof(DocState.Idle))]
+[Transition<DocState, DocTrig>(From = DocState.Idle,    On = DocTrig.Begin,  To = DocState.Loading)]
+[Transition<DocState, DocTrig>(From = DocState.Loading, On = DocTrig.Parsed, To = DocState.Ready)]
+[Terminal<DocState>(State = DocState.Ready)]
+[CompositeState<DocState>(State = DocState.Loading, SubMachine = typeof(LoadingFsm))]
+public partial class DocMachine { }
+```
+
+### Constraints
+
+- The sub-machine type must itself be a `partial class` annotated with `[StateMachine]` (**ZSM0006**).
+- The sub-machine's `TTrigger` must equal the parent's `TTrigger` (**ZSM0007**).
+- `State` must be a declared member of the parent's `TState` enum (**ZSM0008**).
+- Each parent state can be declared composite at most once (**ZSM0009**).
+- The same state cannot be both `[CompositeState]` and `[Terminal]` (**ZSM0011**).
+- Composite states are not supported on a `[StateMachine(Concurrent = true)]` class (**ZSM0005**).
+
+See [Composite States](core-concepts/composite-states.md) for the full model.
+
+---
+
+## `[HistoryState<TState>]`
+
+```csharp
+[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true)]
+public sealed class HistoryStateAttribute<TState> : Attribute
+    where TState : struct, Enum
+```
+
+Declares **shallow history** on a composite state. When the composite is re-entered after a prior exit, its sub-FSM resumes at the leaf state it was in at the moment of exit, instead of resetting to the sub-machine's `InitialState`.
+
+### Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `State` | `TState` | yes | The composite state that should remember its sub-FSM's last leaf state. |
+
+### Example
+
+```csharp
+[CompositeState<DocState>(State = DocState.Loading, SubMachine = typeof(LoadingFsm))]
+[HistoryState<DocState>(State = DocState.Loading)]
+public partial class DocMachine { }
+```
+
+### Constraints
+
+- Requires a matching `[CompositeState(State = X, ...)]` on the same class. A bare `[HistoryState]` emits **ZSM0010**.
+- History is **shallow only** — nested sub-machines are always reset to their initial state when their containing sub-machine is restored.
+
+See [Composite States — Shallow history](core-concepts/composite-states.md#shallow-history-with-historystate) for behaviour details.
 
 ---
 
