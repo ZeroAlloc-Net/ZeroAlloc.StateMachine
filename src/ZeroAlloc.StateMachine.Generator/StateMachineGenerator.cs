@@ -276,6 +276,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeCompositeStates(compositeStates, historyStates, terminalStates,
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
         AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
+        AnalyzeDisposeConflict(type, transitions, diagnostics);
     }
 
     private static void AnalyzeReachability(
@@ -405,6 +406,34 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 diagnostics.Add(Diagnostic.Create(
                     StateMachineDiagnostics.TimedTransitionRequiresConcurrent, location,
                     stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+            }
+        }
+    }
+
+    private static void AnalyzeDisposeConflict(
+        INamedTypeSymbol type,
+        ImmutableArray<TransitionModel> transitions,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var hasTimed = transitions.Any(static t => t.AfterMs > 0);
+        if (!hasTimed) return;
+
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        foreach (var member in type.GetMembers("Dispose").OfType<IMethodSymbol>())
+        {
+            if (member.IsImplicitlyDeclared) continue;
+            // Conflict if signature isn't public void Dispose() with no params.
+            var isCompatible =
+                member.DeclaredAccessibility == Accessibility.Public &&
+                member.ReturnsVoid &&
+                member.Parameters.Length == 0;
+            if (!isCompatible)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.DisposeSignatureConflict, location,
+                    type.Name));
+                return; // one diagnostic per type is enough
             }
         }
     }
