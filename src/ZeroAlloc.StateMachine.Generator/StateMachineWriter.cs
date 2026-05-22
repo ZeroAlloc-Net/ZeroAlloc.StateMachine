@@ -36,25 +36,26 @@ internal static class StateMachineWriter
     private static void WriteNonConcurrentBody(StringBuilder sb, StateMachineModel m)
     {
         var st = m.StateTypeFqn;
-        var tr = m.TriggerTypeFqn;
 
-        // State field + Current property
+        // State field
         sb.AppendLine($"    private {st} _state = {st}.{m.InitialState};");
         sb.AppendLine();
+
+        // Sub-FSM + history fields (only if composites exist)
+        WriteCompositeFields(sb, m);
+
+        // Current property
         sb.AppendLine($"    /// <summary>Current state of the machine.</summary>");
         sb.AppendLine($"    public {st} Current => _state;");
         sb.AppendLine();
 
+        // TryFireSubMachine dispatcher (only if composites exist)
+        WriteTryFireSubMachine(sb, m);
+
         WriteNonConcurrentTryFire(sb, m);
 
         // Fire helper
-        sb.AppendLine($"    private bool Fire({st} from, {st} to, {tr} trigger)");
-        sb.AppendLine($"    {{");
-        sb.AppendLine($"        OnExit(from, trigger);");
-        sb.AppendLine($"        _state = to;");
-        sb.AppendLine($"        OnEnter(to, from);");
-        sb.AppendLine($"        return true;");
-        sb.AppendLine($"    }}");
+        WriteNonConcurrentFire(sb, m);
         sb.AppendLine();
 
         // Reset / ResetTo — state-population mechanics (no OnExit/OnEnter)
@@ -72,6 +73,117 @@ internal static class StateMachineWriter
         WritePartialStubs(sb, m);
     }
 
+    private static void WriteCompositeFields(StringBuilder sb, StateMachineModel m)
+    {
+        if (m.CompositeStates.IsEmpty) return;
+
+        // Sub-FSM instances (one per [CompositeState]).
+        foreach (var c in m.CompositeStates)
+        {
+            sb.AppendLine($"    private readonly {c.SubMachineFqn} _subFsm_{c.State} = new();");
+        }
+
+        // History fields (one pair per [HistoryState] that matches a [CompositeState]).
+        var historySet = new System.Collections.Generic.HashSet<string>(
+            m.HistoryStates.Select(static h => h.State), StringComparer.Ordinal);
+        foreach (var c in m.CompositeStates)
+        {
+            if (historySet.Contains(c.State))
+            {
+                sb.AppendLine($"    private {c.SubMachineStateTypeFqn} _history_{c.State};");
+                sb.AppendLine($"    private bool _hasHistory_{c.State};");
+            }
+        }
+
+        sb.AppendLine();
+    }
+
+    private static void WriteTryFireSubMachine(StringBuilder sb, StateMachineModel m)
+    {
+        if (m.CompositeStates.IsEmpty) return;
+
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
+
+        sb.AppendLine($"    private bool TryFireSubMachine({tr} trigger) => _state switch");
+        sb.AppendLine($"    {{");
+        foreach (var c in m.CompositeStates)
+        {
+            sb.AppendLine($"        {st}.{c.State} => _subFsm_{c.State}.TryFire(trigger),");
+        }
+        sb.AppendLine($"        _ => false");
+        sb.AppendLine($"    }};");
+        sb.AppendLine();
+    }
+
+    private static void WriteNonConcurrentFire(StringBuilder sb, StateMachineModel m)
+    {
+        var st = m.StateTypeFqn;
+        var tr = m.TriggerTypeFqn;
+
+        sb.AppendLine($"    private bool Fire({st} from, {st} to, {tr} trigger)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        OnExit(from, trigger);");
+
+        WriteFireCompositeBlocks(sb, m);
+
+        sb.AppendLine($"        _state = to;");
+
+        WriteFireEnterCompositeBlocks(sb, m);
+
+        sb.AppendLine($"        OnEnter(to, from);");
+        sb.AppendLine($"        return true;");
+        sb.AppendLine($"    }}");
+    }
+
+    private static void WriteFireCompositeBlocks(StringBuilder sb, StateMachineModel m)
+    {
+        if (m.CompositeStates.IsEmpty || m.HistoryStates.IsEmpty) return;
+
+        var st = m.StateTypeFqn;
+        var historySet = new System.Collections.Generic.HashSet<string>(
+            m.HistoryStates.Select(static h => h.State), StringComparer.Ordinal);
+
+        // Capture history on exit (one block per [HistoryState] matching a composite).
+        foreach (var c in m.CompositeStates)
+        {
+            if (historySet.Contains(c.State))
+            {
+                sb.AppendLine($"        if (from == {st}.{c.State})");
+                sb.AppendLine($"        {{");
+                sb.AppendLine($"            _history_{c.State} = _subFsm_{c.State}.Current;");
+                sb.AppendLine($"            _hasHistory_{c.State} = true;");
+                sb.AppendLine($"        }}");
+            }
+        }
+    }
+
+    private static void WriteFireEnterCompositeBlocks(StringBuilder sb, StateMachineModel m)
+    {
+        if (m.CompositeStates.IsEmpty) return;
+
+        var st = m.StateTypeFqn;
+        var historySet = new System.Collections.Generic.HashSet<string>(
+            m.HistoryStates.Select(static h => h.State), StringComparer.Ordinal);
+
+        // Reset/restore sub-FSM on enter (one block per [CompositeState]).
+        foreach (var c in m.CompositeStates)
+        {
+            sb.AppendLine($"        if (to == {st}.{c.State})");
+            sb.AppendLine($"        {{");
+            if (historySet.Contains(c.State))
+            {
+                sb.AppendLine($"            if (_hasHistory_{c.State}) _subFsm_{c.State}.ResetTo(_history_{c.State});");
+                sb.AppendLine($"            else                       _subFsm_{c.State}.Reset();");
+            }
+            else
+            {
+                sb.AppendLine($"            _subFsm_{c.State}.Reset();");
+            }
+            sb.AppendLine($"        }}");
+        }
+    }
+
     private static void WriteNonConcurrentTryFire(StringBuilder sb, StateMachineModel m)
     {
         var st = m.StateTypeFqn;
@@ -83,6 +195,13 @@ internal static class StateMachineWriter
         sb.AppendLine($"    /// </summary>");
         sb.AppendLine($"    public bool TryFire({tr} trigger)");
         sb.AppendLine($"    {{");
+
+        if (m.CompositeStates.Length > 0)
+        {
+            sb.AppendLine($"        if (TryFireSubMachine(trigger)) return true;");
+            sb.AppendLine();
+        }
+
         sb.AppendLine($"        return (Current, trigger) switch");
         sb.AppendLine($"        {{");
 
