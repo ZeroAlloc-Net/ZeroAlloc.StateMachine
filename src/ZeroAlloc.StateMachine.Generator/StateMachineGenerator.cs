@@ -79,11 +79,108 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var ns = type.ContainingNamespace.IsGlobalNamespace
                  ? null
                  : type.ContainingNamespace.ToDisplayString();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+
+        var parts = CollectGroupParts(type);
+
+        ct.ThrowIfCancellationRequested();
+        AnalyzeGroupDiagnostics(type, parts, diagnostics);
 
         return new StateMachineGroupModel(
-            ns, type.Name,
-            ImmutableArray<StateMachinePartModel>.Empty,
-            ImmutableArray<Diagnostic>.Empty);
+            ns, type.Name, parts, diagnostics.ToImmutable());
+    }
+
+    private readonly record struct PartDeclaration(
+        string Name, string InitialState,
+        string StateFqn, string StateShort,
+        string TriggerFqn, string TriggerShort);
+
+    private static ImmutableArray<StateMachinePartModel> CollectGroupParts(INamedTypeSymbol type)
+    {
+        var partDeclarations = CollectPartDeclarations(type);
+        var transitionsByPart = BucketTransitionsByPart(type, partDeclarations);
+
+        var result = ImmutableArray.CreateBuilder<StateMachinePartModel>(partDeclarations.Length);
+        foreach (var pb in partDeclarations)
+        {
+            var transitions = transitionsByPart[pb.Name].ToImmutable();
+            result.Add(new StateMachinePartModel(
+                pb.Name, pb.InitialState, pb.StateFqn, pb.StateShort,
+                pb.TriggerFqn, pb.TriggerShort, transitions));
+        }
+        return result.ToImmutable();
+    }
+
+    private static ImmutableArray<PartDeclaration> CollectPartDeclarations(INamedTypeSymbol type)
+    {
+        var partBuilders = ImmutableArray.CreateBuilder<PartDeclaration>();
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, StateMachinePartAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var name = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Name", StringComparison.Ordinal)).Value.Value as string;
+            var initial = GetEnumMemberName(attr, "InitialState", ac.TypeArguments[0]);
+            if (string.IsNullOrEmpty(name) || initial is null) continue;
+
+            partBuilders.Add(new PartDeclaration(
+                Name: name!,
+                InitialState: initial,
+                StateFqn: ac.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                StateShort: ac.TypeArguments[0].Name,
+                TriggerFqn: ac.TypeArguments[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                TriggerShort: ac.TypeArguments[1].Name));
+        }
+
+        return partBuilders.ToImmutable();
+    }
+
+    private static System.Collections.Generic.Dictionary<string, ImmutableArray<TransitionModel>.Builder> BucketTransitionsByPart(
+        INamedTypeSymbol type,
+        ImmutableArray<PartDeclaration> partDeclarations)
+    {
+        var transitionsByPart = new System.Collections.Generic.Dictionary<string, ImmutableArray<TransitionModel>.Builder>(StringComparer.Ordinal);
+        foreach (var pb in partDeclarations)
+            transitionsByPart[pb.Name] = ImmutableArray.CreateBuilder<TransitionModel>();
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var partName = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Part", StringComparison.Ordinal)).Value.Value as string;
+            if (partName is null) continue;
+            if (!transitionsByPart.TryGetValue(partName, out var bucket)) continue;
+
+            var from = GetEnumMemberName(attr, "From", ac.TypeArguments[0]);
+            var on   = GetEnumMemberName(attr, "On",   ac.TypeArguments[1]);
+            var to   = GetEnumMemberName(attr, "To",   ac.TypeArguments[0]);
+            if (from is null || on is null || to is null) continue;
+
+            var hasGuard = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
+            var afterMs = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "AfterMs", StringComparison.Ordinal)).Value.Value is int ms ? ms : 0;
+
+            bucket.Add(new TransitionModel(from, on, to, hasGuard, afterMs, partName));
+        }
+
+        return transitionsByPart;
+    }
+
+    private static void AnalyzeGroupDiagnostics(
+        INamedTypeSymbol type,
+        ImmutableArray<StateMachinePartModel> parts,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        // Detection lands in Task 11.
     }
 
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
