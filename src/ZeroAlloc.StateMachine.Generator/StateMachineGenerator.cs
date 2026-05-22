@@ -75,7 +75,10 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             initialState, concurrent,
             stateTypeFqn, stateTypeShort!,
             triggerTypeFqn, triggerTypeShort!,
-            transitions, terminalStates, diagnostics.ToImmutable());
+            transitions, terminalStates,
+            ImmutableArray<CompositeStateModel>.Empty,    // NEW -- filled by Task 4
+            ImmutableArray<HistoryStateModel>.Empty,      // NEW -- filled by Task 4
+            diagnostics.ToImmutable());
     }
 
     private static (
