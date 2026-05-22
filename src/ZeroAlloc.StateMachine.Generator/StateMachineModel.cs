@@ -16,5 +16,7 @@ internal sealed record StateMachineModel(
     string TriggerTypeShort,   // e.g. "OrderTrigger"
     ImmutableArray<TransitionModel> Transitions,
     ImmutableArray<string> TerminalStates,    // short enum member names
+    ImmutableArray<CompositeStateModel> CompositeStates,
+    ImmutableArray<HistoryStateModel> HistoryStates,
     ImmutableArray<Diagnostic> Diagnostics
 );

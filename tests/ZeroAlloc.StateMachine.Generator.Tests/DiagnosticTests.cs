@@ -120,4 +120,180 @@ public class DiagnosticTests
         var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
         diagnostics.Should().Contain(d => d.Id == "ZSM0004" && d.Severity == DiagnosticSeverity.Error);
     }
+
+    [Fact]
+    public async Task ZSM0005_CompositeOnConcurrent_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum SubState { A, B }
+            public enum State    { X, Y }
+            public enum Trigger  { Go }
+
+            [StateMachine(InitialState = nameof(SubState.A))]
+            [Transition<SubState, Trigger>(From = SubState.A, On = Trigger.Go, To = SubState.B)]
+            public partial class SubFsm { }
+
+            [StateMachine(InitialState = nameof(State.X), Concurrent = true)]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [CompositeState<State>(State = State.X, SubMachine = typeof(SubFsm))]
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0005");
+    }
+
+    [Fact]
+    public async Task ZSM0006_SubMachineNotStateMachine_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum State   { X, Y }
+            public enum Trigger { Go }
+
+            // NOT a [StateMachine]:
+            public partial class NotAFsm { }
+
+            [StateMachine(InitialState = nameof(State.X))]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [CompositeState<State>(State = State.X, SubMachine = typeof(NotAFsm))]
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0006");
+    }
+
+    [Fact]
+    public async Task ZSM0007_SubMachineTriggerMismatch_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum SubState     { A, B }
+            public enum SubTrigger   { SubGo }       // DIFFERENT trigger enum
+            public enum State        { X, Y }
+            public enum Trigger      { Go }
+
+            [StateMachine(InitialState = nameof(SubState.A))]
+            [Transition<SubState, SubTrigger>(From = SubState.A, On = SubTrigger.SubGo, To = SubState.B)]
+            public partial class SubFsm { }
+
+            [StateMachine(InitialState = nameof(State.X))]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [CompositeState<State>(State = State.X, SubMachine = typeof(SubFsm))]
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0007");
+    }
+
+    [Fact]
+    public async Task ZSM0008_CompositeStateValueNotInTState_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum SubState     { A }
+            public enum State        { X, Y }
+            public enum OtherState   { Z }       // not the parent's TState
+            public enum Trigger      { Go }
+
+            [StateMachine(InitialState = nameof(SubState.A))]
+            [Transition<SubState, Trigger>(From = SubState.A, On = Trigger.Go, To = SubState.A)]
+            public partial class SubFsm { }
+
+            [StateMachine(InitialState = nameof(State.X))]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [CompositeState<OtherState>(State = OtherState.Z, SubMachine = typeof(SubFsm))]
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0008");
+    }
+
+    [Fact]
+    public async Task ZSM0009_DuplicateCompositeState_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum SubState { A }
+            public enum State    { X, Y }
+            public enum Trigger  { Go }
+
+            [StateMachine(InitialState = nameof(SubState.A))]
+            [Transition<SubState, Trigger>(From = SubState.A, On = Trigger.Go, To = SubState.A)]
+            public partial class SubFsm1 { }
+
+            [StateMachine(InitialState = nameof(SubState.A))]
+            [Transition<SubState, Trigger>(From = SubState.A, On = Trigger.Go, To = SubState.A)]
+            public partial class SubFsm2 { }
+
+            [StateMachine(InitialState = nameof(State.X))]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [CompositeState<State>(State = State.X, SubMachine = typeof(SubFsm1))]
+            [CompositeState<State>(State = State.X, SubMachine = typeof(SubFsm2))]  // dup
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0009");
+    }
+
+    [Fact]
+    public async Task ZSM0010_HistoryWithoutComposite_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum State   { X, Y }
+            public enum Trigger { Go }
+
+            [StateMachine(InitialState = nameof(State.X))]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [HistoryState<State>(State = State.X)]   // no matching [CompositeState]
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0010");
+    }
+
+    [Fact]
+    public async Task ZSM0011_CompositeAndTerminalOnSameState_EmitsError()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace MyApp;
+
+            public enum SubState { A }
+            public enum State    { X, Y }
+            public enum Trigger  { Go }
+
+            [StateMachine(InitialState = nameof(SubState.A))]
+            [Transition<SubState, Trigger>(From = SubState.A, On = Trigger.Go, To = SubState.A)]
+            public partial class SubFsm { }
+
+            [StateMachine(InitialState = nameof(State.X))]
+            [Transition<State, Trigger>(From = State.X, On = Trigger.Go, To = State.Y)]
+            [CompositeState<State>(State = State.X, SubMachine = typeof(SubFsm))]
+            [Terminal<State>(State = State.X)]   // contradictory
+            public partial class Parent { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().Contain(d => d.Id == "ZSM0011");
+    }
 }

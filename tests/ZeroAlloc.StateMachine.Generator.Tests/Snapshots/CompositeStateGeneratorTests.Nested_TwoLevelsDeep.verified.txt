@@ -1,0 +1,66 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+[Transition<L3, Trigger>(From = L3.P, On = Trigger.Tick, To = L3.Q)]
+public partial class LeafFsm { }
+                     ^^^^^^^
+
+*/
+ : (11,21)-(11,28),
+      Message: State 'Q' on 'LeafFsm' has no outgoing transitions. Annotate with [Terminal<L3>(State = L3.Q)] if intentional.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0002,
+        Title: Unintentional sink state,
+        Description: Add a [Terminal] annotation or add outgoing transitions.,
+        MessageFormat: State '{0}' on '{1}' has no outgoing transitions. Annotate with [Terminal<{2}>(State = {2}.{0})] if intentional.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+[CompositeState<L2>(State = L2.X, SubMachine = typeof(LeafFsm))]
+public partial class MidFsm { }
+                     ^^^^^^
+
+*/
+ : (16,21)-(16,27),
+      Message: State 'Y' on 'MidFsm' has no outgoing transitions. Annotate with [Terminal<L2>(State = L2.Y)] if intentional.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0002,
+        Title: Unintentional sink state,
+        Description: Add a [Terminal] annotation or add outgoing transitions.,
+        MessageFormat: State '{0}' on '{1}' has no outgoing transitions. Annotate with [Terminal<{2}>(State = {2}.{0})] if intentional.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+[CompositeState<L1>(State = L1.A, SubMachine = typeof(MidFsm))]
+public partial class TopFsm { }
+                     ^^^^^^
+*/
+ : (21,21)-(21,27),
+      Message: State 'B' on 'TopFsm' has no outgoing transitions. Annotate with [Terminal<L1>(State = L1.B)] if intentional.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0002,
+        Title: Unintentional sink state,
+        Description: Add a [Terminal] annotation or add outgoing transitions.,
+        MessageFormat: State '{0}' on '{1}' has no outgoing transitions. Annotate with [Terminal<{2}>(State = {2}.{0})] if intentional.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

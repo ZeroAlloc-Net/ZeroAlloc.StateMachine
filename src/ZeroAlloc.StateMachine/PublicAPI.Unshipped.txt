@@ -1,4 +1,14 @@
 #nullable enable
+ZeroAlloc.StateMachine.CompositeStateAttribute<TState>
+ZeroAlloc.StateMachine.CompositeStateAttribute<TState>.CompositeStateAttribute() -> void
+ZeroAlloc.StateMachine.CompositeStateAttribute<TState>.State.get -> TState
+ZeroAlloc.StateMachine.CompositeStateAttribute<TState>.State.init -> void
+ZeroAlloc.StateMachine.CompositeStateAttribute<TState>.SubMachine.get -> System.Type!
+ZeroAlloc.StateMachine.CompositeStateAttribute<TState>.SubMachine.init -> void
+ZeroAlloc.StateMachine.HistoryStateAttribute<TState>
+ZeroAlloc.StateMachine.HistoryStateAttribute<TState>.HistoryStateAttribute() -> void
+ZeroAlloc.StateMachine.HistoryStateAttribute<TState>.State.get -> TState
+ZeroAlloc.StateMachine.HistoryStateAttribute<TState>.State.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute
 ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.get -> bool
 ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.init -> void

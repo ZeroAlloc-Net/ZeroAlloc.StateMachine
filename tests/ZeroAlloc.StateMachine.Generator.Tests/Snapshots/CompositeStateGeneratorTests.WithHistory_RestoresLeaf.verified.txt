@@ -1,0 +1,25 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+[Transition<LoadingState, Trigger>(From = LoadingState.Fetching, On = Trigger.DataReceived, To = LoadingState.Parsing)]
+public partial class LoadingFsm { }
+                     ^^^^^^^^^^
+
+*/
+ : (10,21)-(10,31),
+      Message: State 'Parsing' on 'LoadingFsm' has no outgoing transitions. Annotate with [Terminal<LoadingState>(State = LoadingState.Parsing)] if intentional.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0002,
+        Title: Unintentional sink state,
+        Description: Add a [Terminal] annotation or add outgoing transitions.,
+        MessageFormat: State '{0}' on '{1}' has no outgoing transitions. Annotate with [Terminal<{2}>(State = {2}.{0})] if intentional.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

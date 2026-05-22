@@ -1,0 +1,46 @@
+﻿{
+  Diagnostics: [
+    {
+      Location: /*
+[Transition<Conn, T>(From = Conn.Resolving, On = T.Done, To = Conn.Handshaking)]
+public partial class ConnFsm { }
+                     ^^^^^^^
+
+*/
+ : (11,21)-(11,28),
+      Message: State 'Handshaking' on 'ConnFsm' has no outgoing transitions. Annotate with [Terminal<Conn>(State = Conn.Handshaking)] if intentional.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0002,
+        Title: Unintentional sink state,
+        Description: Add a [Terminal] annotation or add outgoing transitions.,
+        MessageFormat: State '{0}' on '{1}' has no outgoing transitions. Annotate with [Terminal<{2}>(State = {2}.{0})] if intentional.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    },
+    {
+      Location: /*
+[Transition<Auth, T>(From = Auth.ValidatingToken, On = T.Done, To = Auth.Renewing)]
+public partial class AuthFsm { }
+                     ^^^^^^^
+
+*/
+ : (15,21)-(15,28),
+      Message: State 'Renewing' on 'AuthFsm' has no outgoing transitions. Annotate with [Terminal<Auth>(State = Auth.Renewing)] if intentional.,
+      Severity: Warning,
+      WarningLevel: 1,
+      Descriptor: {
+        Id: ZSM0002,
+        Title: Unintentional sink state,
+        Description: Add a [Terminal] annotation or add outgoing transitions.,
+        MessageFormat: State '{0}' on '{1}' has no outgoing transitions. Annotate with [Terminal<{2}>(State = {2}.{0})] if intentional.,
+        Category: ZeroAlloc.StateMachine,
+        DefaultSeverity: Warning,
+        IsEnabledByDefault: true
+      }
+    }
+  ]
+}

@@ -13,6 +13,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private const string StateMachineAttributeFqn        = "ZeroAlloc.StateMachine.StateMachineAttribute";
     private const string TransitionAttributeMetadataName = "TransitionAttribute`2";
     private const string TerminalAttributeMetadataName   = "TerminalAttribute`1";
+    private const string CompositeStateAttributeMetadataName = "CompositeStateAttribute`1";
+    private const string HistoryStateAttributeMetadataName   = "HistoryStateAttribute`1";
+    private const string StateMachineAttributeMetadataName   = "StateMachineAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -54,7 +57,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var concurrent = smAttr.NamedArguments
             .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
 
-        var (transitions, terminalStates, stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
+        var (transitions, terminalStates, compositeStates, historyStates,
+             stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
             = CollectAttributes(type);
 
         if (transitions.IsEmpty) return null; // No transitions found — not a valid state machine
@@ -68,19 +72,26 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
         ct.ThrowIfCancellationRequested();
-        AnalyzeDiagnostics(initialState, transitions, terminalStates, stateTypeShort!, type, isStruct, concurrent, diagnostics);
+        AnalyzeDiagnostics(initialState, transitions, terminalStates,
+            compositeStates, historyStates,
+            stateTypeShort!, triggerTypeFqn!, triggerTypeShort!,
+            type, isStruct, concurrent, diagnostics);
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
             initialState, concurrent,
             stateTypeFqn, stateTypeShort!,
             triggerTypeFqn, triggerTypeShort!,
-            transitions, terminalStates, diagnostics.ToImmutable());
+            transitions, terminalStates,
+            compositeStates, historyStates,
+            diagnostics.ToImmutable());
     }
 
     private static (
         ImmutableArray<TransitionModel> Transitions,
         ImmutableArray<string> TerminalStates,
+        ImmutableArray<CompositeStateModel> CompositeStates,
+        ImmutableArray<HistoryStateModel> HistoryStates,
         string? StateTypeFqn,
         string? StateTypeShort,
         string? TriggerTypeFqn,
@@ -89,12 +100,14 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     {
         var transitions    = ImmutableArray.CreateBuilder<TransitionModel>();
         var terminalStates = ImmutableArray.CreateBuilder<string>();
+        var compositeStates = ImmutableArray.CreateBuilder<CompositeStateModel>();
+        var historyStates   = ImmutableArray.CreateBuilder<HistoryStateModel>();
         string? stateTypeFqn    = null;
         string? stateTypeShort  = null;
         string? triggerTypeFqn  = null;
         string? triggerTypeShort = null;
 
-        // Walk ALL attributes on the type to find [Transition<,>] and [Terminal<>]
+        // Walk ALL attributes on the type to find [Transition<,>], [Terminal<>], [CompositeState<>], [HistoryState<>]
         foreach (var attr in type.GetAttributes())
         {
             var attrClass = attr.AttributeClass;
@@ -105,22 +118,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             if (string.Equals(metadataName, TransitionAttributeMetadataName, StringComparison.Ordinal) &&
                 attrClass.TypeArguments.Length == 2)
             {
-                var stateType   = attrClass.TypeArguments[0];
-                var triggerType = attrClass.TypeArguments[1];
-
-                stateTypeFqn    ??= stateType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                stateTypeShort  ??= stateType.Name;
-                triggerTypeFqn  ??= triggerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
-                triggerTypeShort ??= triggerType.Name;
-
-                var from     = GetEnumMemberName(attr, "From",  attrClass.TypeArguments[0]);
-                var on       = GetEnumMemberName(attr, "On",    attrClass.TypeArguments[1]);
-                var to       = GetEnumMemberName(attr, "To",    attrClass.TypeArguments[0]);
-                var hasGuard = attr.NamedArguments
-                    .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
-
-                if (from is not null && on is not null && to is not null)
-                    transitions.Add(new TransitionModel(from, on, to, hasGuard));
+                CollectTransition(attr, attrClass, transitions,
+                    ref stateTypeFqn, ref stateTypeShort, ref triggerTypeFqn, ref triggerTypeShort);
             }
             else if (string.Equals(metadataName, TerminalAttributeMetadataName, StringComparison.Ordinal) &&
                      attrClass.TypeArguments.Length == 1)
@@ -128,9 +127,75 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 var stateName = GetEnumMemberName(attr, "State", attrClass.TypeArguments[0]);
                 if (stateName is not null) terminalStates.Add(stateName);
             }
+            else if (string.Equals(metadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal) &&
+                     attrClass.TypeArguments.Length == 1)
+            {
+                CollectCompositeState(attr, attrClass, compositeStates);
+            }
+            else if (string.Equals(metadataName, HistoryStateAttributeMetadataName, StringComparison.Ordinal) &&
+                     attrClass.TypeArguments.Length == 1)
+            {
+                var stateName = GetEnumMemberName(attr, "State", attrClass.TypeArguments[0]);
+                if (stateName is not null)
+                    historyStates.Add(new HistoryStateModel(stateName));
+            }
         }
 
-        return (transitions.ToImmutable(), terminalStates.ToImmutable(), stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort);
+        return (transitions.ToImmutable(), terminalStates.ToImmutable(),
+                compositeStates.ToImmutable(), historyStates.ToImmutable(),
+                stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort);
+    }
+
+    private static void CollectTransition(
+        AttributeData attr,
+        INamedTypeSymbol attrClass,
+        ImmutableArray<TransitionModel>.Builder transitions,
+        ref string? stateTypeFqn,
+        ref string? stateTypeShort,
+        ref string? triggerTypeFqn,
+        ref string? triggerTypeShort)
+    {
+        var stateType   = attrClass.TypeArguments[0];
+        var triggerType = attrClass.TypeArguments[1];
+
+        stateTypeFqn    ??= stateType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        stateTypeShort  ??= stateType.Name;
+        triggerTypeFqn  ??= triggerType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+        triggerTypeShort ??= triggerType.Name;
+
+        var from     = GetEnumMemberName(attr, "From",  attrClass.TypeArguments[0]);
+        var on       = GetEnumMemberName(attr, "On",    attrClass.TypeArguments[1]);
+        var to       = GetEnumMemberName(attr, "To",    attrClass.TypeArguments[0]);
+        var hasGuard = attr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
+
+        if (from is not null && on is not null && to is not null)
+            transitions.Add(new TransitionModel(from, on, to, hasGuard));
+    }
+
+    private static void CollectCompositeState(
+        AttributeData attr,
+        INamedTypeSymbol attrClass,
+        ImmutableArray<CompositeStateModel>.Builder compositeStates)
+    {
+        var stateName = GetEnumMemberName(attr, "State", attrClass.TypeArguments[0]);
+        var subMachineSymbol = attr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "SubMachine", StringComparison.Ordinal))
+            .Value.Value as INamedTypeSymbol;
+
+        if (stateName is null || subMachineSymbol is null) return;
+
+        // Resolve the sub-machine's TState by walking its [Transition<TState, TTrigger>] attributes.
+        // If the sub-machine is malformed (no transitions), this returns null; Task 5's diagnostics
+        // (ZSM0006) will catch the bad declaration separately. Use a placeholder FQN for now so the
+        // model stays well-typed.
+        var subStateTypeFqn = ResolveSubMachineStateTypeFqn(subMachineSymbol) ?? "global::object";
+
+        compositeStates.Add(new CompositeStateModel(
+            State: stateName,
+            SubMachineFqn: subMachineSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            SubMachineShort: subMachineSymbol.Name,
+            SubMachineStateTypeFqn: subStateTypeFqn));
     }
 
     private static string? GetEnumMemberName(AttributeData attr, string namedArgKey, ITypeSymbol enumType)
@@ -152,11 +217,30 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         return null; // Unresolvable enum value — caller will skip this transition
     }
 
+    private static string? ResolveSubMachineStateTypeFqn(INamedTypeSymbol subMachineType)
+    {
+        foreach (var attr in subMachineType.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal) &&
+                ac.TypeArguments.Length == 2)
+            {
+                return ac.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+        }
+        return null;
+    }
+
     private static void AnalyzeDiagnostics(
         string initialState,
         ImmutableArray<TransitionModel> transitions,
         ImmutableArray<string> terminalStates,
+        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<HistoryStateModel> historyStates,
         string stateTypeShort,
+        string triggerTypeFqn,
+        string triggerTypeShort,
         INamedTypeSymbol type,
         bool isStruct,
         bool concurrent,
@@ -185,6 +269,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         AnalyzeReachability(initialState, terminalStates, stateTypeShort, type, location, allFromStates, allToStates, diagnostics);
         AnalyzeTriggerUsage(type, location, allTriggers, diagnostics);
+        AnalyzeCompositeStates(compositeStates, historyStates, terminalStates,
+            stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
     }
 
     private static void AnalyzeReachability(
@@ -262,5 +348,219 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 }
             }
         }
+    }
+
+    private static void AnalyzeCompositeStates(
+        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<HistoryStateModel> historyStates,
+        ImmutableArray<string> terminalStates,
+        string stateTypeShort,
+        string parentTriggerTypeFqn,
+        string parentTriggerTypeShort,
+        INamedTypeSymbol type,
+        bool concurrent,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        if (AnalyzeCompositeConcurrent(compositeStates, type, concurrent, location, diagnostics))
+            return; // ZSM0005 fired — model is invalid, skip remaining composite analysis
+
+        var seenStates = AnalyzeCompositeDuplicates(compositeStates, stateTypeShort, type, location, diagnostics);
+        AnalyzeCompositeInvalidStates(compositeStates, stateTypeShort, type, location, diagnostics);
+        AnalyzeCompositeSubMachineValidity(compositeStates, stateTypeShort,
+            parentTriggerTypeFqn, parentTriggerTypeShort, type, location, diagnostics);
+        AnalyzeOrphanedHistory(historyStates, seenStates, stateTypeShort, type, location, diagnostics);
+        AnalyzeCompositeTerminalConflict(compositeStates, terminalStates, stateTypeShort, type, location, diagnostics);
+    }
+
+    // ZSM0005: composite + concurrent
+    private static bool AnalyzeCompositeConcurrent(
+        ImmutableArray<CompositeStateModel> compositeStates,
+        INamedTypeSymbol type,
+        bool concurrent,
+        Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (concurrent && !compositeStates.IsEmpty)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.CompositeStateOnConcurrentMachine, location,
+                type.Name));
+            return true;
+        }
+        return false;
+    }
+
+    // ZSM0009: duplicate composite declarations
+    private static System.Collections.Generic.HashSet<string> AnalyzeCompositeDuplicates(
+        ImmutableArray<CompositeStateModel> compositeStates,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var seenStates = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var cs in compositeStates)
+        {
+            if (!seenStates.Add(cs.State))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.DuplicateCompositeState, location,
+                    type.Name, stateTypeShort, cs.State));
+            }
+        }
+        return seenStates;
+    }
+
+    // ZSM0008: composite state value not in TState
+    private static void AnalyzeCompositeInvalidStates(
+        ImmutableArray<CompositeStateModel> compositeStates,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        INamedTypeSymbol? stateEnum = null;
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is not null &&
+                string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal) &&
+                ac.TypeArguments.Length == 2 &&
+                ac.TypeArguments[0] is INamedTypeSymbol stEnum)
+            {
+                stateEnum = stEnum;
+                break;
+            }
+        }
+        if (stateEnum is null) return;
+
+        var validStates = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var m in stateEnum.GetMembers().OfType<IFieldSymbol>())
+            validStates.Add(m.Name);
+        foreach (var cs in compositeStates)
+        {
+            if (!validStates.Contains(cs.State))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.CompositeStateInvalidStateValue, location,
+                    cs.State, type.Name, stateTypeShort));
+            }
+        }
+    }
+
+    // ZSM0006 + ZSM0007: sub-machine validity
+    private static void AnalyzeCompositeSubMachineValidity(
+        ImmutableArray<CompositeStateModel> compositeStates,
+        string stateTypeShort,
+        string parentTriggerTypeFqn,
+        string parentTriggerTypeShort,
+        INamedTypeSymbol type,
+        Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        foreach (var cs in compositeStates)
+        {
+            var subTypeSymbol = ResolveSubMachineSymbol(type, cs.State);
+            if (subTypeSymbol is null) continue;
+
+            var hasStateMachineAttr = subTypeSymbol.GetAttributes().Any(a =>
+                string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
+            if (!hasStateMachineAttr)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.SubMachineIsNotStateMachine, location,
+                    stateTypeShort, cs.State, type.Name, subTypeSymbol.Name));
+                continue;
+            }
+
+            var subTriggerFqn = ResolveSubMachineTriggerTypeFqn(subTypeSymbol);
+            if (subTriggerFqn is not null &&
+                !string.Equals(subTriggerFqn, parentTriggerTypeFqn, StringComparison.Ordinal))
+            {
+                var subTriggerShort = subTriggerFqn.Substring(subTriggerFqn.LastIndexOf('.') + 1);
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.SubMachineTriggerMismatch, location,
+                    stateTypeShort, cs.State, type.Name, subTypeSymbol.Name,
+                    subTriggerShort, parentTriggerTypeShort));
+            }
+        }
+    }
+
+    // ZSM0010: [HistoryState] without [CompositeState]
+    private static void AnalyzeOrphanedHistory(
+        ImmutableArray<HistoryStateModel> historyStates,
+        System.Collections.Generic.HashSet<string> seenStates,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        foreach (var hs in historyStates)
+        {
+            if (!seenStates.Contains(hs.State))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.HistoryWithoutComposite, location,
+                    stateTypeShort, hs.State, type.Name));
+            }
+        }
+    }
+
+    // ZSM0011: composite + [Terminal] on same state
+    private static void AnalyzeCompositeTerminalConflict(
+        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<string> terminalStates,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var terminalSet = new System.Collections.Generic.HashSet<string>(terminalStates, StringComparer.Ordinal);
+        foreach (var cs in compositeStates)
+        {
+            if (terminalSet.Contains(cs.State))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.CompositeAndTerminalOnSameState, location,
+                    stateTypeShort, cs.State, type.Name));
+            }
+        }
+    }
+
+    private static INamedTypeSymbol? ResolveSubMachineSymbol(INamedTypeSymbol parentType, string compositeStateName)
+    {
+        foreach (var attr in parentType.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal))
+                continue;
+            if (ac.TypeArguments.Length != 1) continue;
+            var stateName = GetEnumMemberName(attr, "State", ac.TypeArguments[0]);
+            if (!string.Equals(stateName, compositeStateName, StringComparison.Ordinal)) continue;
+            if (attr.NamedArguments.FirstOrDefault(kv => string.Equals(kv.Key, "SubMachine", StringComparison.Ordinal))
+                                  .Value.Value is INamedTypeSymbol s)
+            {
+                return s;
+            }
+        }
+        return null;
+    }
+
+    private static string? ResolveSubMachineTriggerTypeFqn(INamedTypeSymbol subMachineType)
+    {
+        foreach (var attr in subMachineType.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal) &&
+                ac.TypeArguments.Length == 2)
+            {
+                return ac.TypeArguments[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+            }
+        }
+        return null;
     }
 }
