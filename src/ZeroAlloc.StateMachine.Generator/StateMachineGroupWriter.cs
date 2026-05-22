@@ -1,5 +1,6 @@
 namespace ZeroAlloc.StateMachine.Generator;
 
+using System.Linq;
 using System.Text;
 
 internal static class StateMachineGroupWriter
@@ -17,10 +18,176 @@ internal static class StateMachineGroupWriter
             sb.AppendLine();
         }
 
-        sb.AppendLine($"partial class {m.ClassName}");
+        var hasAnyTimer = m.Parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
+        var disposableSuffix = hasAnyTimer ? " : System.IDisposable" : "";
+        sb.AppendLine($"partial class {m.ClassName}{disposableSuffix}");
         sb.AppendLine("{");
-        // Per-part emit lands in subsequent tasks.
+
+        foreach (var p in m.Parts)
+        {
+            WritePartBody(sb, m.ClassName, p);
+            sb.AppendLine();
+        }
+
+        if (hasAnyTimer) WriteGroupDispose(sb, m);
+
         sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private static void WritePartBody(StringBuilder sb, string className, StateMachinePartModel p)
+    {
+        WritePartFields(sb, p);
+        WritePartCurrentProperty(sb, p);
+        WritePartTryFire(sb, className, p);
+        WritePartHooks(sb, p);
+    }
+
+    private static void WritePartFields(StringBuilder sb, StateMachinePartModel p)
+    {
+        sb.AppendLine($"    // ── Part: {p.Name} ────────────────────────────────────────");
+        sb.AppendLine($"    private long _state_{p.Name} = (long){p.StateTypeFqn}.{p.InitialState};");
+        foreach (var t in p.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            sb.AppendLine($"    private System.Threading.Timer? _timer_{p.Name}_{t.From}_{t.On};");
+        }
+        sb.AppendLine();
+    }
+
+    private static void WritePartCurrentProperty(StringBuilder sb, StateMachinePartModel p)
+    {
+        sb.AppendLine($"    /// <summary>Current state of part \"{p.Name}\" (thread-safe read).</summary>");
+        sb.AppendLine($"    public {p.StateTypeFqn} {p.Name}Current => ({p.StateTypeFqn})System.Threading.Volatile.Read(ref _state_{p.Name});");
+        sb.AppendLine();
+    }
+
+    private static void WritePartTryFire(StringBuilder sb, string className, StateMachinePartModel p)
+    {
+        var st = p.StateTypeFqn;
+        var tr = p.TriggerTypeFqn;
+
+        sb.AppendLine($"    /// <summary>Attempt to fire <paramref name=\"trigger\"/> on part \"{p.Name}\". Returns <c>true</c> if the transition occurred.</summary>");
+        sb.AppendLine($"    public bool TryFire{p.Name}({tr} trigger)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        while (true)");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            var current = ({st})System.Threading.Volatile.Read(ref _state_{p.Name});");
+        sb.AppendLine($"            {st}? next = (current, trigger) switch");
+        sb.AppendLine($"            {{");
+        foreach (var t in p.Transitions)
+            sb.AppendLine($"                ({st}.{t.From}, {tr}.{t.On}) => ({st}?){st}.{t.To},");
+        sb.AppendLine($"                _ => null");
+        sb.AppendLine($"            }};");
+        sb.AppendLine();
+        sb.AppendLine($"            if (next is null) return false;");
+        sb.AppendLine();
+        sb.AppendLine($"            if (System.Threading.Interlocked.CompareExchange(");
+        sb.AppendLine($"                    ref _state_{p.Name}, (long)next.Value, (long)current) == (long)current)");
+        sb.AppendLine($"            {{");
+        sb.AppendLine($"                OnExit{p.Name}(current, trigger);");
+        sb.AppendLine($"                OnEnter{p.Name}(next.Value, current);");
+        WritePartTimerDisarmInline(sb, p);
+        WritePartTimerArmInline(sb, p, className);
+        sb.AppendLine($"                return true;");
+        sb.AppendLine($"            }}");
+        sb.AppendLine($"        }}");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+    }
+
+    private static void WritePartTimerDisarmInline(StringBuilder sb, StateMachinePartModel p)
+    {
+        var st = p.StateTypeFqn;
+        foreach (var t in p.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            sb.AppendLine($"                if (current == {st}.{t.From})");
+            sb.AppendLine($"                    _timer_{p.Name}_{t.From}_{t.On}?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
+        }
+    }
+
+    private static void WritePartTimerArmInline(StringBuilder sb, StateMachinePartModel p, string className)
+    {
+        var st = p.StateTypeFqn;
+        var tr = p.TriggerTypeFqn;
+        foreach (var t in p.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            var field = $"_timer_{p.Name}_{t.From}_{t.On}";
+            sb.AppendLine($"                if (next.Value == {st}.{t.From})");
+            sb.AppendLine($"                {{");
+            sb.AppendLine($"                    var __t = {field};");
+            sb.AppendLine($"                    if (__t is null)");
+            sb.AppendLine($"                    {{");
+            sb.AppendLine($"                        var __new = new System.Threading.Timer(");
+            sb.AppendLine($"                            static s => (({className})s!).TryFire{p.Name}({tr}.{t.On}),");
+            sb.AppendLine($"                            this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"                        __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
+            sb.AppendLine($"                        if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
+            sb.AppendLine($"                    }}");
+            sb.AppendLine($"                    __t.Change({t.AfterMs}, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"                }}");
+        }
+    }
+
+    private static void WritePartHooks(StringBuilder sb, StateMachinePartModel p)
+    {
+        var st = p.StateTypeFqn;
+        var tr = p.TriggerTypeFqn;
+        var exitStates = p.Transitions.Select(static t => t.From).Distinct(System.StringComparer.Ordinal).ToArray();
+        var enterStates = p.Transitions.Select(static t => t.To).Distinct(System.StringComparer.Ordinal).ToArray();
+
+        sb.AppendLine($"    private void OnExit{p.Name}({st} state, {tr} trigger)");
+        sb.AppendLine($"    {{");
+        if (exitStates.Length > 0)
+        {
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var s in exitStates)
+                sb.AppendLine($"            case {st}.{s}: OnExit{p.Name}{s}(trigger); break;");
+            sb.AppendLine($"        }}");
+        }
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        sb.AppendLine($"    private void OnEnter{p.Name}({st} state, {st} from)");
+        sb.AppendLine($"    {{");
+        if (enterStates.Length > 0)
+        {
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var s in enterStates)
+                sb.AppendLine($"            case {st}.{s}: OnEnter{p.Name}{s}(from); break;");
+            sb.AppendLine($"        }}");
+        }
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        sb.AppendLine($"    // ── Partial hooks for part \"{p.Name}\" — implement what you need");
+        foreach (var s in exitStates)
+        {
+            sb.AppendLine($"    /// <summary>Called after leaving <c>{s}</c> on part \"{p.Name}\".</summary>");
+            sb.AppendLine($"    partial void OnExit{p.Name}{s}({tr} on);");
+        }
+        foreach (var s in enterStates)
+        {
+            sb.AppendLine($"    /// <summary>Called after entering <c>{s}</c> on part \"{p.Name}\".</summary>");
+            sb.AppendLine($"    partial void OnEnter{p.Name}{s}({st} from);");
+        }
+    }
+
+    private static void WriteGroupDispose(StringBuilder sb, StateMachineGroupModel m)
+    {
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Disposes all timers owned by this group.</summary>");
+        sb.AppendLine($"    public void Dispose()");
+        sb.AppendLine($"    {{");
+        foreach (var p in m.Parts)
+            foreach (var t in p.Transitions)
+                if (t.AfterMs > 0)
+                    sb.AppendLine($"        _timer_{p.Name}_{t.From}_{t.On}?.Dispose();");
+        sb.AppendLine($"        System.GC.SuppressFinalize(this);");
+        sb.AppendLine($"    }}");
     }
 }
