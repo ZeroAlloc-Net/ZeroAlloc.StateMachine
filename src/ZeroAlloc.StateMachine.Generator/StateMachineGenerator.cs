@@ -168,9 +168,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var to       = GetEnumMemberName(attr, "To",    attrClass.TypeArguments[0]);
         var hasGuard = attr.NamedArguments
             .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
+        var afterMs = attr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "AfterMs", StringComparison.Ordinal)).Value.Value is int ms ? ms : 0;
+        var part = attr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Part", StringComparison.Ordinal)).Value.Value as string;
 
         if (from is not null && on is not null && to is not null)
-            transitions.Add(new TransitionModel(from, on, to, hasGuard));
+            transitions.Add(new TransitionModel(from, on, to, hasGuard, afterMs, part));
     }
 
     private static void CollectCompositeState(
