@@ -180,7 +180,96 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         ImmutableArray<StateMachinePartModel> parts,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
-        // Detection lands in Task 11.
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        AnalyzeGroupExclusivity(type, location, diagnostics);
+        AnalyzeGroupEmpty(type, parts, location, diagnostics);
+        AnalyzeDuplicatePartNames(type, parts, location, diagnostics);
+        AnalyzeUnknownTransitionParts(type, parts, location, diagnostics);
+        AnalyzeCompositeInGroup(type, location, diagnostics);
+    }
+
+    // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class
+    private static void AnalyzeGroupExclusivity(
+        INamedTypeSymbol type, Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var hasStateMachine = type.GetAttributes().Any(a =>
+            string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
+        if (hasStateMachine)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.StateMachineAndGroupExclusive, location, type.Name));
+        }
+    }
+
+    // ZSM0017: [StateMachineGroup] with zero [StateMachinePart]
+    private static void AnalyzeGroupEmpty(
+        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
+        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (parts.IsEmpty)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.EmptyStateMachineGroup, location, type.Name));
+        }
+    }
+
+    // ZSM0015: duplicate Name on [StateMachinePart]
+    private static void AnalyzeDuplicatePartNames(
+        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
+        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var p in parts)
+        {
+            if (!seen.Add(p.Name))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.DuplicateStateMachinePartName, location, type.Name, p.Name));
+            }
+        }
+    }
+
+    // ZSM0016: [Transition].Part references unknown part (or is null when class is a group)
+    private static void AnalyzeUnknownTransitionParts(
+        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
+        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var partNames = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var p in parts) partNames.Add(p.Name);
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var partName = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Part", StringComparison.Ordinal)).Value.Value as string;
+
+            if (partName is null || !partNames.Contains(partName))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.TransitionPartUnknown, location,
+                    partName ?? "<null>", type.Name));
+            }
+        }
+    }
+
+    // ZSM0018: [CompositeState] on a [StateMachineGroup]
+    private static void AnalyzeCompositeInGroup(
+        INamedTypeSymbol type, Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var hasComposite = type.GetAttributes().Any(a =>
+            string.Equals(a.AttributeClass?.MetadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal));
+        if (hasComposite)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.CompositeStateInGroup, location, type.Name));
+        }
     }
 
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
