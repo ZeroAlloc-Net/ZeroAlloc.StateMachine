@@ -51,6 +51,7 @@ machine.Current;                 // Pending
 | [Composite States](core-concepts/composite-states.md) | Hierarchical sub-FSMs, dispatch order, shallow history |
 | [Timeout Transitions](core-concepts/timeout-transitions.md) | `AfterMs` edges, lazy timers, race-safe CAS, `IDisposable` |
 | [Concurrent Parts](core-concepts/concurrent-parts.md) | Multiple independent FSMs in one class via `[StateMachineGroup]` |
+| [Diagram Export](core-concepts/diagram-export.md) | `Diagram = true` emits a Mermaid `stateDiagram-v2` `const string` |
 
 ### Guides
 
@@ -84,3 +85,5 @@ machine.Current;                 // Pending
 | [ZSM0017](diagnostics/ZSM0017.md) | Error | `[StateMachineGroup]` declared with no parts |
 | [ZSM0018](diagnostics/ZSM0018.md) | Error | Composite state inside a group |
 | [ZSM0019](diagnostics/ZSM0019.md) | Error | Incompatible user-supplied `Dispose` |
+| [ZSM0020](diagnostics/ZSM0020.md) | Warning | `Diagram = true` on a class with no transitions |
+| [ZSM0021](diagnostics/ZSM0021.md) | Error | User constructor must call `HookConstructor()` |

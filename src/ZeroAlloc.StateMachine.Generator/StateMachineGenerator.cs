@@ -31,21 +31,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .Where(static m => m is not null)
             .Select(static (m, _) => m!);
 
-        context.RegisterSourceOutput(models, static (ctx, model) =>
-        {
-            foreach (var diag in model.Diagnostics)
-                ctx.ReportDiagnostic(diag);
-
-            // Do not emit source if any diagnostic is a hard error — the model is invalid
-            if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
-                return;
-
-            var source = StateMachineWriter.Write(model);
-            var hintName = model.Namespace is null
-                ? $"{model.ClassName}.g.cs"
-                : $"{model.Namespace}_{model.ClassName}.g.cs";
-            ctx.AddSource(hintName, source);
-        });
+        context.RegisterSourceOutput(
+            models.Combine(context.CompilationProvider),
+            static (ctx, tuple) => EmitStateMachine(ctx, tuple.Left, tuple.Right));
 
         var groupModels = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -71,6 +59,34 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         });
     }
 
+    private static void EmitStateMachine(SourceProductionContext ctx, StateMachineModel model, Compilation compilation)
+    {
+        foreach (var diag in model.Diagnostics)
+            ctx.ReportDiagnostic(diag);
+
+        // Do not emit source if any diagnostic is a hard error — the model is invalid
+        if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
+            return;
+
+        // Skip emit when there are no transitions — the model was only built so that
+        // AnalyzeDiagnostics could fire ZSM0020 (Diagram = true on an empty machine).
+        if (model.Transitions.IsEmpty)
+            return;
+
+        System.Func<string, StateMachineModel?> resolver = fqn =>
+        {
+            var clean = fqn.StartsWith("global::", StringComparison.Ordinal) ? fqn.Substring(8) : fqn;
+            var sym = compilation.GetTypeByMetadataName(clean);
+            return sym is null ? null : BuildModelFromSymbol(sym);
+        };
+
+        var source = StateMachineWriter.Write(model, resolver);
+        var hintName = model.Namespace is null
+            ? $"{model.ClassName}.g.cs"
+            : $"{model.Namespace}_{model.ClassName}.g.cs";
+        ctx.AddSource(hintName, source);
+    }
+
     private static StateMachineGroupModel? ParseGroup(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
     {
         if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
@@ -81,13 +97,21 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                  : type.ContainingNamespace.ToDisplayString();
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
+        var groupAttr = ctx.Attributes[0];
+        var diagram = groupAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+
         var parts = CollectGroupParts(type);
+        var hasUserCtor = type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared);
 
         ct.ThrowIfCancellationRequested();
-        AnalyzeGroupDiagnostics(type, parts, diagnostics);
+        AnalyzeGroupDiagnostics(type, parts, diagram, diagnostics);
 
         return new StateMachineGroupModel(
-            ns, type.Name, parts, diagnostics.ToImmutable());
+            ns, type.Name, parts,
+            HasUserCtor: hasUserCtor,
+            Diagram: diagram,
+            diagnostics.ToImmutable());
     }
 
     private readonly record struct PartDeclaration(
@@ -178,6 +202,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private static void AnalyzeGroupDiagnostics(
         INamedTypeSymbol type,
         ImmutableArray<StateMachinePartModel> parts,
+        bool diagram,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
@@ -187,6 +212,16 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeDuplicatePartNames(type, parts, location, diagnostics);
         AnalyzeUnknownTransitionParts(type, parts, location, diagnostics);
         AnalyzeCompositeInGroup(type, location, diagnostics);
+
+        var anyTransition = parts.Any(static p => !p.Transitions.IsEmpty);
+        if (diagram && !anyTransition)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
+        }
+
+        var hasTimedInGroup = parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
+        AnalyzeMissingHookConstructorInvocation(type, hasTimedInGroup, diagnostics);
     }
 
     // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class
@@ -272,6 +307,57 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
     }
 
+    /// <summary>
+    /// Build a <see cref="StateMachineModel"/> from a raw <see cref="INamedTypeSymbol"/> without
+    /// going through <see cref="GeneratorAttributeSyntaxContext"/>. Used by the Mermaid diagram
+    /// writer to resolve sub-FSM types referenced by composite states at parent-emit time.
+    /// </summary>
+    /// <remarks>
+    /// This does not run diagnostic analysis — the returned model's
+    /// <see cref="StateMachineModel.Diagnostics"/> is always empty. Sub-FSMs that lack the
+    /// <c>[StateMachine]</c> attribute, lack transitions, or lack a resolvable initial state
+    /// return <c>null</c>.
+    /// </remarks>
+    internal static StateMachineModel? BuildModelFromSymbol(INamedTypeSymbol type)
+    {
+        var smAttr = type.GetAttributes()
+            .FirstOrDefault(a => string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
+        if (smAttr is null) return null;
+
+        var initialState = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
+        var concurrent = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
+        var diagram = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+
+        var (transitions, terminalStates, compositeStates, historyStates,
+             stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
+            = CollectAttributes(type);
+
+        if (transitions.IsEmpty) return null;
+        if (stateTypeFqn is null || triggerTypeFqn is null) return null;
+        if (string.IsNullOrEmpty(initialState)) return null;
+
+        var ns = type.ContainingNamespace.IsGlobalNamespace
+                 ? null
+                 : type.ContainingNamespace.ToDisplayString();
+        var isStruct = type.TypeKind == TypeKind.Struct;
+        var hasUserCtor = type.InstanceConstructors
+            .Any(c => !c.IsImplicitlyDeclared);
+
+        return new StateMachineModel(
+            ns, type.Name, isStruct,
+            initialState, concurrent,
+            stateTypeFqn, stateTypeShort!,
+            triggerTypeFqn, triggerTypeShort!,
+            transitions, terminalStates,
+            compositeStates, historyStates,
+            HasUserCtor: hasUserCtor,
+            Diagram: diagram,
+            Diagnostics: ImmutableArray<Diagnostic>.Empty);
+    }
+
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
     {
         if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
@@ -283,34 +369,47 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
         var concurrent = smAttr.NamedArguments
             .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
+        var diagram = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
 
         var (transitions, terminalStates, compositeStates, historyStates,
              stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
             = CollectAttributes(type);
 
-        if (transitions.IsEmpty) return null; // No transitions found — not a valid state machine
-        if (stateTypeFqn is null || triggerTypeFqn is null) return null;
+        // If there are no transitions, normally skip — but if Diagram = true, we still
+        // want AnalyzeDiagnostics to fire ZSM0020. The RegisterSourceOutput callback
+        // short-circuits on empty transitions so the writer is never invoked.
+        if (transitions.IsEmpty && !diagram) return null;
+        if (!transitions.IsEmpty && (stateTypeFqn is null || triggerTypeFqn is null)) return null;
         if (string.IsNullOrEmpty(initialState)) return null;
 
         var ns       = type.ContainingNamespace.IsGlobalNamespace
                      ? null
                      : type.ContainingNamespace.ToDisplayString();
         var isStruct = type.TypeKind == TypeKind.Struct;
+        var hasUserCtor = type.InstanceConstructors
+            .Any(c => !c.IsImplicitlyDeclared);
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
         ct.ThrowIfCancellationRequested();
         AnalyzeDiagnostics(initialState, transitions, terminalStates,
             compositeStates, historyStates,
-            stateTypeShort!, triggerTypeFqn!, triggerTypeShort!,
-            type, isStruct, concurrent, diagnostics);
+            stateTypeShort ?? string.Empty,
+            triggerTypeFqn ?? string.Empty,
+            triggerTypeShort ?? string.Empty,
+            type, isStruct, concurrent, diagram, diagnostics);
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
             initialState, concurrent,
-            stateTypeFqn, stateTypeShort!,
-            triggerTypeFqn, triggerTypeShort!,
+            stateTypeFqn ?? string.Empty,
+            stateTypeShort ?? string.Empty,
+            triggerTypeFqn ?? string.Empty,
+            triggerTypeShort ?? string.Empty,
             transitions, terminalStates,
             compositeStates, historyStates,
+            HasUserCtor: hasUserCtor,
+            Diagram: diagram,
             diagnostics.ToImmutable());
     }
 
@@ -475,6 +574,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         INamedTypeSymbol type,
         bool isStruct,
         bool concurrent,
+        bool diagram,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
@@ -504,6 +604,77 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
         AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
         AnalyzeDisposeConflict(type, transitions, diagnostics);
+        AnalyzeEmptyDiagramRequest(diagram, transitions, type, diagnostics);
+
+        var hasTimed = transitions.Any(static t => t.AfterMs > 0);
+        AnalyzeMissingHookConstructorInvocation(type, hasTimed, diagnostics);
+    }
+
+    private static void AnalyzeEmptyDiagramRequest(
+        bool diagram,
+        ImmutableArray<TransitionModel> transitions,
+        INamedTypeSymbol type,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (!diagram) return;
+        if (!transitions.IsEmpty) return;
+
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+        diagnostics.Add(Diagnostic.Create(
+            StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
+    }
+
+    private static void AnalyzeMissingHookConstructorInvocation(
+        INamedTypeSymbol type,
+        bool hasTimedEdges,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (!hasTimedEdges) return;
+
+        var userCtors = type.InstanceConstructors
+            .Where(c => !c.IsImplicitlyDeclared)
+            .ToArray();
+        if (userCtors.Length == 0) return;
+
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        foreach (var ctor in userCtors)
+        {
+            if (CtorInvokesHookConstructor(ctor)) return;
+        }
+
+        diagnostics.Add(Diagnostic.Create(
+            StateMachineDiagnostics.MissingHookConstructorInvocation, location, type.Name));
+    }
+
+    private static bool CtorInvokesHookConstructor(IMethodSymbol ctor)
+    {
+        foreach (var syntaxRef in ctor.DeclaringSyntaxReferences)
+        {
+            var node = syntaxRef.GetSyntax();
+            if (node is null) continue;
+
+            // Walk the ctor body's descendant invocations; look for HookConstructor(),
+            // this.HookConstructor(), or base.HookConstructor().
+            foreach (var inv in node.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>())
+            {
+                var name = inv.Expression switch
+                {
+                    Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax id => id.Identifier.ValueText,
+                    Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax
+                    {
+                        Expression: Microsoft.CodeAnalysis.CSharp.Syntax.ThisExpressionSyntax or Microsoft.CodeAnalysis.CSharp.Syntax.BaseExpressionSyntax,
+                        Name: Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax memberId
+                    } => memberId.Identifier.ValueText,
+                    _ => null,
+                };
+                if (string.Equals(name, "HookConstructor", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void AnalyzeReachability(

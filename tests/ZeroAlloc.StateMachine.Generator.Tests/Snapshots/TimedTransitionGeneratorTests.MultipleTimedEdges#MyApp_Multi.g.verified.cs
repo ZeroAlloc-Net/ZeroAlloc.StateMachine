@@ -79,6 +79,7 @@ partial class Multi : System.IDisposable
     internal void Reset()
     {
         _state = (long)global::MyApp.MS.A;
+        ArmInitialStateTimers();
     }
 
     /// <summary>Sets the machine to <paramref name="state"/>. Does NOT fire OnExit/OnEnter -- state-population only.</summary>
@@ -86,6 +87,7 @@ partial class Multi : System.IDisposable
     internal void ResetTo(global::MyApp.MS state)
     {
         _state = (long)state;
+        ArmInitialStateTimers();
     }
 
     private void OnExit(global::MyApp.MS state, global::MyApp.MT trigger)
@@ -130,5 +132,49 @@ partial class Multi : System.IDisposable
         _timer_A_ToB?.Dispose();
         _timer_B_ToC?.Dispose();
         System.GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>
+    private void ArmInitialStateTimers()
+    {
+        var current = Current;
+        if (current == global::MyApp.MS.A)
+        {
+            var __t = _timer_A_ToB;
+            if (__t is null)
+            {
+                var __new = new System.Threading.Timer(
+                    static s => ((Multi)s!).TryFire(global::MyApp.MT.ToB),
+                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                __t = System.Threading.Interlocked.CompareExchange(ref _timer_A_ToB, __new, null) ?? __new;
+                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
+            }
+            __t.Change(1000, System.Threading.Timeout.Infinite);
+        }
+        if (current == global::MyApp.MS.B)
+        {
+            var __t = _timer_B_ToC;
+            if (__t is null)
+            {
+                var __new = new System.Threading.Timer(
+                    static s => ((Multi)s!).TryFire(global::MyApp.MT.ToC),
+                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                __t = System.Threading.Interlocked.CompareExchange(ref _timer_B_ToC, __new, null) ?? __new;
+                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
+            }
+            __t.Change(2000, System.Threading.Timeout.Infinite);
+        }
+    }
+
+    /// <summary>Generator-emitted partial hook invoked from the constructor. Arms initial-state timers.</summary>
+    private void HookConstructor()
+    {
+        ArmInitialStateTimers();
+    }
+
+    /// <summary>Default generator-emitted constructor; calls HookConstructor() to arm initial-state timers.</summary>
+    public Multi()
+    {
+        HookConstructor();
     }
 }

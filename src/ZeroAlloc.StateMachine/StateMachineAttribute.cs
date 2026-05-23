@@ -27,4 +27,14 @@ public sealed class StateMachineAttribute : Attribute
     /// Default: <c>false</c>.
     /// </summary>
     public bool Concurrent { get; init; } = false;
+
+    /// <summary>
+    /// When <c>true</c>, the generator emits a <c>public const string MermaidDiagram</c>
+    /// on the partial containing a Mermaid <c>stateDiagram-v2</c> rendering of the
+    /// machine's transitions. Composite sub-FSMs render as nested <c>state X { ... }</c>
+    /// blocks; timed edges annotate with <c>(after Nms)</c>; guards annotate with
+    /// <c>[guard]</c>; terminal states render as <c>X --> [*]</c>.
+    /// Default: <c>false</c>.
+    /// </summary>
+    public bool Diagram { get; init; } = false;
 }

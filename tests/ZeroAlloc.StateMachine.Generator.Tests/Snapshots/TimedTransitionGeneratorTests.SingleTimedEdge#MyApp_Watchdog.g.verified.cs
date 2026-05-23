@@ -63,6 +63,7 @@ partial class Watchdog : System.IDisposable
     internal void Reset()
     {
         _state = (long)global::MyApp.WdState.Idle;
+        ArmInitialStateTimers();
     }
 
     /// <summary>Sets the machine to <paramref name="state"/>. Does NOT fire OnExit/OnEnter -- state-population only.</summary>
@@ -70,6 +71,7 @@ partial class Watchdog : System.IDisposable
     internal void ResetTo(global::MyApp.WdState state)
     {
         _state = (long)state;
+        ArmInitialStateTimers();
     }
 
     private void OnExit(global::MyApp.WdState state, global::MyApp.WdTrigger trigger)
@@ -107,5 +109,36 @@ partial class Watchdog : System.IDisposable
     {
         _timer_Working_Timeout?.Dispose();
         System.GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>
+    private void ArmInitialStateTimers()
+    {
+        var current = Current;
+        if (current == global::MyApp.WdState.Working)
+        {
+            var __t = _timer_Working_Timeout;
+            if (__t is null)
+            {
+                var __new = new System.Threading.Timer(
+                    static s => ((Watchdog)s!).TryFire(global::MyApp.WdTrigger.Timeout),
+                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                __t = System.Threading.Interlocked.CompareExchange(ref _timer_Working_Timeout, __new, null) ?? __new;
+                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
+            }
+            __t.Change(5000, System.Threading.Timeout.Infinite);
+        }
+    }
+
+    /// <summary>Generator-emitted partial hook invoked from the constructor. Arms initial-state timers.</summary>
+    private void HookConstructor()
+    {
+        ArmInitialStateTimers();
+    }
+
+    /// <summary>Default generator-emitted constructor; calls HookConstructor() to arm initial-state timers.</summary>
+    public Watchdog()
+    {
+        HookConstructor();
     }
 }

@@ -81,6 +81,24 @@ partial class DeviceTimed : System.IDisposable
     /// <summary>Called after entering <c>Faulted</c> on part "Operational".</summary>
     partial void OnEnterOperationalFaulted(global::MyApp.OpState from);
 
+    private void ArmInitialStateTimers_Operational()
+    {
+        var current = OperationalCurrent;
+        if (current == global::MyApp.OpState.Running)
+        {
+            var __t = _timer_Operational_Running_Fault;
+            if (__t is null)
+            {
+                var __new = new System.Threading.Timer(
+                    static s => ((DeviceTimed)s!).TryFireOperational(global::MyApp.OpTrigger.Fault),
+                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                __t = System.Threading.Interlocked.CompareExchange(ref _timer_Operational_Running_Fault, __new, null) ?? __new;
+                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
+            }
+            __t.Change(10000, System.Threading.Timeout.Infinite);
+        }
+    }
+
     // ── Part: Connection ────────────────────────────────────────
     private long _state_Connection = (long)global::MyApp.ConnState.Disconnected;
 
@@ -146,5 +164,16 @@ partial class DeviceTimed : System.IDisposable
     {
         _timer_Operational_Running_Fault?.Dispose();
         System.GC.SuppressFinalize(this);
+    }
+
+    /// <summary>Generator-emitted partial hook invoked from the constructor.</summary>
+    private void HookConstructor()
+    {
+        ArmInitialStateTimers_Operational();
+    }
+
+    public DeviceTimed()
+    {
+        HookConstructor();
     }
 }

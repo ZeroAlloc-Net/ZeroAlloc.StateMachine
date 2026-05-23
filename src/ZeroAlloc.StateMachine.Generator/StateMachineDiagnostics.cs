@@ -174,4 +174,22 @@ internal static class StateMachineDiagnostics
         defaultSeverity:    DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:        "When timed transitions exist, the generator emits public void Dispose() implementing IDisposable; a user method with a different signature collides with it.");
+
+    public static readonly DiagnosticDescriptor EmptyDiagramRequest = new(
+        id:                 "ZSM0020",
+        title:              "[StateMachine(Diagram = true)] on a class with zero transitions",
+        messageFormat:      "'{0}' declares Diagram = true but has no transitions; the emitted MermaidDiagram would be empty",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description:        "Either remove Diagram = true or add at least one [Transition] (or [StateMachinePart] with its own transitions for a group).");
+
+    public static readonly DiagnosticDescriptor MissingHookConstructorInvocation = new(
+        id:                 "ZSM0021",
+        title:              "User-declared constructor must call HookConstructor()",
+        messageFormat:      "'{0}' has at least one timed transition AND a user-declared constructor that does not invoke HookConstructor(). Add a HookConstructor() call so the generator can arm initial-state timers.",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "When timed transitions are present and the user declares their own constructor, that constructor must call the generator-emitted partial void HookConstructor() to arm initial-state timers.");
 }
