@@ -40,6 +40,11 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
                 return;
 
+            // Skip emit when there are no transitions — the model was only built so that
+            // AnalyzeDiagnostics could fire ZSM0020 (Diagram = true on an empty machine).
+            if (model.Transitions.IsEmpty)
+                return;
+
             var source = StateMachineWriter.Write(model);
             var hintName = model.Namespace is null
                 ? $"{model.ClassName}.g.cs"
@@ -88,7 +93,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var parts = CollectGroupParts(type);
 
         ct.ThrowIfCancellationRequested();
-        AnalyzeGroupDiagnostics(type, parts, diagnostics);
+        AnalyzeGroupDiagnostics(type, parts, diagram, diagnostics);
 
         return new StateMachineGroupModel(
             ns, type.Name, parts,
@@ -184,6 +189,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private static void AnalyzeGroupDiagnostics(
         INamedTypeSymbol type,
         ImmutableArray<StateMachinePartModel> parts,
+        bool diagram,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
@@ -193,6 +199,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeDuplicatePartNames(type, parts, location, diagnostics);
         AnalyzeUnknownTransitionParts(type, parts, location, diagnostics);
         AnalyzeCompositeInGroup(type, location, diagnostics);
+
+        var anyTransition = parts.Any(static p => !p.Transitions.IsEmpty);
+        if (diagram && !anyTransition)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
+        }
     }
 
     // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class
@@ -296,8 +309,11 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
              stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
             = CollectAttributes(type);
 
-        if (transitions.IsEmpty) return null; // No transitions found — not a valid state machine
-        if (stateTypeFqn is null || triggerTypeFqn is null) return null;
+        // If there are no transitions, normally skip — but if Diagram = true, we still
+        // want AnalyzeDiagnostics to fire ZSM0020. The RegisterSourceOutput callback
+        // short-circuits on empty transitions so the writer is never invoked.
+        if (transitions.IsEmpty && !diagram) return null;
+        if (!transitions.IsEmpty && (stateTypeFqn is null || triggerTypeFqn is null)) return null;
         if (string.IsNullOrEmpty(initialState)) return null;
 
         var ns       = type.ContainingNamespace.IsGlobalNamespace
@@ -309,14 +325,18 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         ct.ThrowIfCancellationRequested();
         AnalyzeDiagnostics(initialState, transitions, terminalStates,
             compositeStates, historyStates,
-            stateTypeShort!, triggerTypeFqn!, triggerTypeShort!,
-            type, isStruct, concurrent, diagnostics);
+            stateTypeShort ?? string.Empty,
+            triggerTypeFqn ?? string.Empty,
+            triggerTypeShort ?? string.Empty,
+            type, isStruct, concurrent, diagram, diagnostics);
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
             initialState, concurrent,
-            stateTypeFqn, stateTypeShort!,
-            triggerTypeFqn, triggerTypeShort!,
+            stateTypeFqn ?? string.Empty,
+            stateTypeShort ?? string.Empty,
+            triggerTypeFqn ?? string.Empty,
+            triggerTypeShort ?? string.Empty,
             transitions, terminalStates,
             compositeStates, historyStates,
             Diagram: diagram,
@@ -484,6 +504,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         INamedTypeSymbol type,
         bool isStruct,
         bool concurrent,
+        bool diagram,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
         var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
@@ -513,6 +534,21 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
         AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
         AnalyzeDisposeConflict(type, transitions, diagnostics);
+        AnalyzeEmptyDiagramRequest(diagram, transitions, type, diagnostics);
+    }
+
+    private static void AnalyzeEmptyDiagramRequest(
+        bool diagram,
+        ImmutableArray<TransitionModel> transitions,
+        INamedTypeSymbol type,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (!diagram) return;
+        if (!transitions.IsEmpty) return;
+
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+        diagnostics.Add(Diagnostic.Create(
+            StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
     }
 
     private static void AnalyzeReachability(
