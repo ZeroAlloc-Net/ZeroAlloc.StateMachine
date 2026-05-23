@@ -11,11 +11,14 @@ using System.Threading;
 public sealed class StateMachineGenerator : IIncrementalGenerator
 {
     private const string StateMachineAttributeFqn        = "ZeroAlloc.StateMachine.StateMachineAttribute";
+    private const string StateMachineGroupAttributeFqn   = "ZeroAlloc.StateMachine.StateMachineGroupAttribute";
     private const string TransitionAttributeMetadataName = "TransitionAttribute`2";
     private const string TerminalAttributeMetadataName   = "TerminalAttribute`1";
     private const string CompositeStateAttributeMetadataName = "CompositeStateAttribute`1";
     private const string HistoryStateAttributeMetadataName   = "HistoryStateAttribute`1";
     private const string StateMachineAttributeMetadataName   = "StateMachineAttribute";
+    private const string StateMachineGroupAttributeMetadataName = "StateMachineGroupAttribute";
+    private const string StateMachinePartAttributeMetadataName  = "StateMachinePartAttribute`2";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -43,6 +46,230 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 : $"{model.Namespace}_{model.ClassName}.g.cs";
             ctx.AddSource(hintName, source);
         });
+
+        var groupModels = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                StateMachineGroupAttributeFqn,
+                predicate: static (node, _) => node is ClassDeclarationSyntax,
+                transform: static (ctx, ct) => ParseGroup(ctx, ct))
+            .Where(static m => m is not null)
+            .Select(static (m, _) => m!);
+
+        context.RegisterSourceOutput(groupModels, static (ctx, model) =>
+        {
+            foreach (var diag in model.Diagnostics)
+                ctx.ReportDiagnostic(diag);
+
+            if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
+                return;
+
+            var source = StateMachineGroupWriter.Write(model);
+            var hintName = model.Namespace is null
+                ? $"{model.ClassName}.Group.g.cs"
+                : $"{model.Namespace}_{model.ClassName}.Group.g.cs";
+            ctx.AddSource(hintName, source);
+        });
+    }
+
+    private static StateMachineGroupModel? ParseGroup(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
+    {
+        if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
+        ct.ThrowIfCancellationRequested();
+
+        var ns = type.ContainingNamespace.IsGlobalNamespace
+                 ? null
+                 : type.ContainingNamespace.ToDisplayString();
+        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+
+        var parts = CollectGroupParts(type);
+
+        ct.ThrowIfCancellationRequested();
+        AnalyzeGroupDiagnostics(type, parts, diagnostics);
+
+        return new StateMachineGroupModel(
+            ns, type.Name, parts, diagnostics.ToImmutable());
+    }
+
+    private readonly record struct PartDeclaration(
+        string Name, string InitialState,
+        string StateFqn, string StateShort,
+        string TriggerFqn, string TriggerShort);
+
+    private static ImmutableArray<StateMachinePartModel> CollectGroupParts(INamedTypeSymbol type)
+    {
+        var partDeclarations = CollectPartDeclarations(type);
+        var transitionsByPart = BucketTransitionsByPart(type, partDeclarations);
+
+        var result = ImmutableArray.CreateBuilder<StateMachinePartModel>(partDeclarations.Length);
+        foreach (var pb in partDeclarations)
+        {
+            var transitions = transitionsByPart[pb.Name].ToImmutable();
+            result.Add(new StateMachinePartModel(
+                pb.Name, pb.InitialState, pb.StateFqn, pb.StateShort,
+                pb.TriggerFqn, pb.TriggerShort, transitions));
+        }
+        return result.ToImmutable();
+    }
+
+    private static ImmutableArray<PartDeclaration> CollectPartDeclarations(INamedTypeSymbol type)
+    {
+        var partBuilders = ImmutableArray.CreateBuilder<PartDeclaration>();
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, StateMachinePartAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var name = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Name", StringComparison.Ordinal)).Value.Value as string;
+            var initial = GetEnumMemberName(attr, "InitialState", ac.TypeArguments[0]);
+            if (string.IsNullOrEmpty(name) || initial is null) continue;
+
+            partBuilders.Add(new PartDeclaration(
+                Name: name!,
+                InitialState: initial,
+                StateFqn: ac.TypeArguments[0].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                StateShort: ac.TypeArguments[0].Name,
+                TriggerFqn: ac.TypeArguments[1].ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                TriggerShort: ac.TypeArguments[1].Name));
+        }
+
+        return partBuilders.ToImmutable();
+    }
+
+    private static System.Collections.Generic.Dictionary<string, ImmutableArray<TransitionModel>.Builder> BucketTransitionsByPart(
+        INamedTypeSymbol type,
+        ImmutableArray<PartDeclaration> partDeclarations)
+    {
+        var transitionsByPart = new System.Collections.Generic.Dictionary<string, ImmutableArray<TransitionModel>.Builder>(StringComparer.Ordinal);
+        foreach (var pb in partDeclarations)
+            transitionsByPart[pb.Name] = ImmutableArray.CreateBuilder<TransitionModel>();
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var partName = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Part", StringComparison.Ordinal)).Value.Value as string;
+            if (partName is null) continue;
+            if (!transitionsByPart.TryGetValue(partName, out var bucket)) continue;
+
+            var from = GetEnumMemberName(attr, "From", ac.TypeArguments[0]);
+            var on   = GetEnumMemberName(attr, "On",   ac.TypeArguments[1]);
+            var to   = GetEnumMemberName(attr, "To",   ac.TypeArguments[0]);
+            if (from is null || on is null || to is null) continue;
+
+            var hasGuard = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
+            var afterMs = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "AfterMs", StringComparison.Ordinal)).Value.Value is int ms ? ms : 0;
+
+            bucket.Add(new TransitionModel(from, on, to, hasGuard, afterMs, partName));
+        }
+
+        return transitionsByPart;
+    }
+
+    private static void AnalyzeGroupDiagnostics(
+        INamedTypeSymbol type,
+        ImmutableArray<StateMachinePartModel> parts,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        AnalyzeGroupExclusivity(type, location, diagnostics);
+        AnalyzeGroupEmpty(type, parts, location, diagnostics);
+        AnalyzeDuplicatePartNames(type, parts, location, diagnostics);
+        AnalyzeUnknownTransitionParts(type, parts, location, diagnostics);
+        AnalyzeCompositeInGroup(type, location, diagnostics);
+    }
+
+    // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class
+    private static void AnalyzeGroupExclusivity(
+        INamedTypeSymbol type, Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var hasStateMachine = type.GetAttributes().Any(a =>
+            string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
+        if (hasStateMachine)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.StateMachineAndGroupExclusive, location, type.Name));
+        }
+    }
+
+    // ZSM0017: [StateMachineGroup] with zero [StateMachinePart]
+    private static void AnalyzeGroupEmpty(
+        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
+        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (parts.IsEmpty)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.EmptyStateMachineGroup, location, type.Name));
+        }
+    }
+
+    // ZSM0015: duplicate Name on [StateMachinePart]
+    private static void AnalyzeDuplicatePartNames(
+        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
+        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var p in parts)
+        {
+            if (!seen.Add(p.Name))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.DuplicateStateMachinePartName, location, type.Name, p.Name));
+            }
+        }
+    }
+
+    // ZSM0016: [Transition].Part references unknown part (or is null when class is a group)
+    private static void AnalyzeUnknownTransitionParts(
+        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
+        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var partNames = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        foreach (var p in parts) partNames.Add(p.Name);
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var partName = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Part", StringComparison.Ordinal)).Value.Value as string;
+
+            if (partName is null || !partNames.Contains(partName))
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.TransitionPartUnknown, location,
+                    partName ?? "<null>", type.Name));
+            }
+        }
+    }
+
+    // ZSM0018: [CompositeState] on a [StateMachineGroup]
+    private static void AnalyzeCompositeInGroup(
+        INamedTypeSymbol type, Location location,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var hasComposite = type.GetAttributes().Any(a =>
+            string.Equals(a.AttributeClass?.MetadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal));
+        if (hasComposite)
+        {
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.CompositeStateInGroup, location, type.Name));
+        }
     }
 
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
@@ -168,9 +395,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var to       = GetEnumMemberName(attr, "To",    attrClass.TypeArguments[0]);
         var hasGuard = attr.NamedArguments
             .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
+        var afterMs = attr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "AfterMs", StringComparison.Ordinal)).Value.Value is int ms ? ms : 0;
+        var part = attr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Part", StringComparison.Ordinal)).Value.Value as string;
 
         if (from is not null && on is not null && to is not null)
-            transitions.Add(new TransitionModel(from, on, to, hasGuard));
+            transitions.Add(new TransitionModel(from, on, to, hasGuard, afterMs, part));
     }
 
     private static void CollectCompositeState(
@@ -271,6 +502,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeTriggerUsage(type, location, allTriggers, diagnostics);
         AnalyzeCompositeStates(compositeStates, historyStates, terminalStates,
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
+        AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
+        AnalyzeDisposeConflict(type, transitions, diagnostics);
     }
 
     private static void AnalyzeReachability(
@@ -372,6 +605,64 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             parentTriggerTypeFqn, parentTriggerTypeShort, type, location, diagnostics);
         AnalyzeOrphanedHistory(historyStates, seenStates, stateTypeShort, type, location, diagnostics);
         AnalyzeCompositeTerminalConflict(compositeStates, terminalStates, stateTypeShort, type, location, diagnostics);
+    }
+
+    private static void AnalyzeTimedTransitions(
+        ImmutableArray<TransitionModel> transitions,
+        string stateTypeShort,
+        INamedTypeSymbol type,
+        bool concurrent,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        foreach (var t in transitions)
+        {
+            if (t.AfterMs == 0) continue;
+
+            if (t.AfterMs < 0)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.TimedTransitionInvalidDuration, location,
+                    stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+                continue;
+            }
+
+            if (!concurrent)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.TimedTransitionRequiresConcurrent, location,
+                    stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+            }
+        }
+    }
+
+    private static void AnalyzeDisposeConflict(
+        INamedTypeSymbol type,
+        ImmutableArray<TransitionModel> transitions,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        var hasTimed = transitions.Any(static t => t.AfterMs > 0);
+        if (!hasTimed) return;
+
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        foreach (var member in type.GetMembers("Dispose").OfType<IMethodSymbol>())
+        {
+            if (member.IsImplicitlyDeclared) continue;
+            // Conflict if signature isn't public void Dispose() with no params.
+            var isCompatible =
+                member.DeclaredAccessibility == Accessibility.Public &&
+                member.ReturnsVoid &&
+                member.Parameters.Length == 0;
+            if (!isCompatible)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.DisposeSignatureConflict, location,
+                    type.Name));
+                return; // one diagnostic per type is enough
+            }
+        }
     }
 
     // ZSM0005: composite + concurrent

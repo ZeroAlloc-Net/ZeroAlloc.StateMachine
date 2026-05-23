@@ -6,7 +6,7 @@ sidebar_position: 3
 
 # Attribute Reference
 
-ZeroAlloc.StateMachine exposes five attributes. All live in the `ZeroAlloc.StateMachine` namespace.
+ZeroAlloc.StateMachine exposes seven attributes. All live in the `ZeroAlloc.StateMachine` namespace.
 
 ---
 
@@ -69,6 +69,8 @@ Declares a single directed edge in the state graph. Stack multiple attributes to
 | `On` | `TTrigger` | yes | — | The trigger value that activates this edge. |
 | `To` | `TState` | yes | — | Destination state after the transition fires. |
 | `When` | `bool` | no | `false` | When `true`, the generator emits a `private partial bool Guard{TriggerName}(TState from, TTrigger on)` stub and adds a `when` clause to the switch arm. The transition fires only if the guard returns `true`. Ignored when `Concurrent = true`. |
+| `AfterMs` {#transition-afterms} | `int` | no | `0` | When `> 0`, declares a **timeout transition**: the edge auto-fires after `AfterMs` milliseconds in the source state. Requires `Concurrent = true` on the enclosing `[StateMachine]` or that the edge lives inside a `[StateMachinePart]`. See [Timeout Transitions](core-concepts/timeout-transitions.md). |
+| `Part` {#transition-part} | `string?` | no | `null` | The `Name` of the `[StateMachinePart]` this transition belongs to. Required on transitions inside a `[StateMachineGroup]`; must be `null` (omitted) on transitions inside a single-machine `[StateMachine]` class. See [Concurrent Parts](core-concepts/concurrent-parts.md). |
 
 ### Examples
 
@@ -211,9 +213,81 @@ See [Composite States — Shallow history](core-concepts/composite-states.md#sha
 
 ---
 
+## `[StateMachineGroup]` {#statemachinegroup}
+
+```csharp
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
+public sealed class StateMachineGroupAttribute : Attribute
+```
+
+Marks a `partial` class as a group of independent concurrent state machines. Each contained machine is declared by a `[StateMachinePart<TState, TTrigger>]` attribute on the same class. Mutually exclusive with `[StateMachine]`.
+
+### Properties
+
+None.
+
+### Example
+
+```csharp
+[StateMachineGroup]
+[StateMachinePart<OpState,   OpTrigger>  (Name = "Operational", InitialState = OpState.Idle)]
+[StateMachinePart<ConnState, ConnTrigger>(Name = "Connection",  InitialState = ConnState.Offline)]
+[Transition<OpState,   OpTrigger>  (Part = "Operational", From = OpState.Idle,       On = OpTrigger.Start,    To = OpState.Running)]
+[Transition<ConnState, ConnTrigger>(Part = "Connection",  From = ConnState.Offline,  On = ConnTrigger.Connect, To = ConnState.Connecting)]
+public partial class Device { }
+```
+
+### Constraints
+
+- The target type must be declared `partial`.
+- Mutually exclusive with `[StateMachine]` (**ZSM0014**).
+- Must declare at least one `[StateMachinePart]` (**ZSM0017**).
+- `[CompositeState]` is not supported inside a group (**ZSM0018**).
+
+See [Concurrent Parts](core-concepts/concurrent-parts.md) for the full model.
+
+---
+
+## `[StateMachinePart<TState, TTrigger>]` {#statemachinepart-tstate-ttrigger}
+
+```csharp
+[AttributeUsage(AttributeTargets.Class, AllowMultiple = true)]
+public sealed class StateMachinePartAttribute<TState, TTrigger> : Attribute
+    where TState   : struct, Enum
+    where TTrigger : struct, Enum
+```
+
+Declares one concurrent state machine inside a `[StateMachineGroup]` class. Each part has its own `TState`, `TTrigger`, state field, `TryFire<Name>` method, and per-part `OnEnter<Name>` / `OnExit<Name>` hooks.
+
+### Properties
+
+| Property | Type | Required | Description |
+|----------|------|----------|-------------|
+| `Name` | `string` | yes | Unique identifier for this part within the class. Suffixed onto generated members (`<Name>Current`, `TryFire<Name>`, `OnEnter<Name>`, `OnExit<Name>`). Must follow C# identifier rules. |
+| `InitialState` | `TState` | yes | The starting state for this part's state field. |
+
+### Example
+
+```csharp
+[StateMachineGroup]
+[StateMachinePart<OpState, OpTrigger>(Name = "Operational", InitialState = OpState.Idle)]
+public partial class Device { }
+```
+
+### Constraints
+
+- Requires `[StateMachineGroup]` on the same class.
+- Each `Name` must be unique within the class (**ZSM0015**).
+- Every `[Transition]` in the class must set `Part` to a declared `Name` (**ZSM0016**).
+- Parts are always concurrent — no opt-out per part.
+
+See [Concurrent Parts](core-concepts/concurrent-parts.md) for the full model.
+
+---
+
 ## Attribute placement
 
-All three attributes target `Class` and `Struct`:
+`[StateMachine]`, `[Transition]`, `[Terminal]`, `[CompositeState]`, and `[HistoryState]` target both `Class` and `Struct`. `[StateMachineGroup]` and `[StateMachinePart]` target `Class` only (concurrent dispatch requires reference identity).
 
 ```csharp
 // Class

@@ -15,15 +15,27 @@ ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.get -> string!
 ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute.StateMachineAttribute() -> void
+ZeroAlloc.StateMachine.StateMachineGroupAttribute
+ZeroAlloc.StateMachine.StateMachineGroupAttribute.StateMachineGroupAttribute() -> void
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.InitialState.get -> TState
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.InitialState.init -> void
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.Name.get -> string!
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.Name.init -> void
+ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.StateMachinePartAttribute() -> void
 ZeroAlloc.StateMachine.TerminalAttribute<TState>
 ZeroAlloc.StateMachine.TerminalAttribute<TState>.State.get -> TState
 ZeroAlloc.StateMachine.TerminalAttribute<TState>.State.init -> void
 ZeroAlloc.StateMachine.TerminalAttribute<TState>.TerminalAttribute() -> void
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.AfterMs.get -> int
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.AfterMs.init -> void
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.From.get -> TState
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.From.init -> void
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.On.get -> TTrigger
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.On.init -> void
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.Part.get -> string?
+ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.Part.init -> void
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.To.get -> TState
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.To.init -> void
 ZeroAlloc.StateMachine.TransitionAttribute<TState, TTrigger>.TransitionAttribute() -> void

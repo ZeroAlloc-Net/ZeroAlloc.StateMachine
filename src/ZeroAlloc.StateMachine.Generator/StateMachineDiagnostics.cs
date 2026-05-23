@@ -102,4 +102,76 @@ internal static class StateMachineDiagnostics
         defaultSeverity:    DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:        "Remove either the [CompositeState] or the [Terminal] declaration for this state.");
+
+    public static readonly DiagnosticDescriptor TimedTransitionRequiresConcurrent = new(
+        id:                 "ZSM0012",
+        title:              "AfterMs requires Concurrent = true",
+        messageFormat:      "[Transition(From = {0}.{1}, On = {2}, To = {3}, AfterMs = {4})] on '{5}': AfterMs requires Concurrent = true (or that the transition belongs to a [StateMachinePart], which is always concurrent)",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "Timer callbacks race with user-initiated TryFire; CAS-based concurrent dispatch is required to keep the model thread-safe.");
+
+    public static readonly DiagnosticDescriptor TimedTransitionInvalidDuration = new(
+        id:                 "ZSM0013",
+        title:              "AfterMs must be positive",
+        messageFormat:      "[Transition(From = {0}.{1}, On = {2}, To = {3}, AfterMs = {4})] on '{5}': AfterMs must be greater than zero",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "A non-positive AfterMs has no meaningful semantics; omit the property to disable the timer.");
+
+    public static readonly DiagnosticDescriptor StateMachineAndGroupExclusive = new(
+        id:                 "ZSM0014",
+        title:              "[StateMachine] and [StateMachineGroup] are mutually exclusive",
+        messageFormat:      "'{0}' declares both [StateMachine] and [StateMachineGroup]. Pick one: single-machine classes use [StateMachine]; multi-part classes use [StateMachineGroup] + [StateMachinePart].",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "A class is either a single state machine or a group of named parts, not both.");
+
+    public static readonly DiagnosticDescriptor DuplicateStateMachinePartName = new(
+        id:                 "ZSM0015",
+        title:              "Duplicate [StateMachinePart] name",
+        messageFormat:      "[StateMachinePart] on '{0}': two parts share Name = \"{1}\". Each part must have a unique name within the class.",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "The Name doubles as the suffix for TryFire<Name>, <Name>Current and per-part hooks, so it must be unique.");
+
+    public static readonly DiagnosticDescriptor TransitionPartUnknown = new(
+        id:                 "ZSM0016",
+        title:              "Transition references unknown part",
+        messageFormat:      "[Transition(... Part = \"{0}\")] on '{1}': no [StateMachinePart] with Name = \"{0}\" declared on this class. In a [StateMachineGroup] class every transition must carry Part = the name of a declared part.",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "Transitions inside a [StateMachineGroup] are routed by the Part discriminator; an unknown or missing Part cannot be dispatched.");
+
+    public static readonly DiagnosticDescriptor EmptyStateMachineGroup = new(
+        id:                 "ZSM0017",
+        title:              "[StateMachineGroup] declares no parts",
+        messageFormat:      "[StateMachineGroup] on '{0}': no [StateMachinePart] declared. A group must contain at least one part.",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "Empty groups generate no usable code; declare at least one [StateMachinePart] or use [StateMachine] for a single-machine class.");
+
+    public static readonly DiagnosticDescriptor CompositeStateInGroup = new(
+        id:                 "ZSM0018",
+        title:              "[CompositeState] is not supported inside [StateMachineGroup]",
+        messageFormat:      "[CompositeState] on '{0}': composites are not supported inside a [StateMachineGroup] (parts are always concurrent; composites require sequential dispatch)",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "Parts are concurrent by definition; composite states require sequential dispatch and cannot live inside a group.");
+
+    public static readonly DiagnosticDescriptor DisposeSignatureConflict = new(
+        id:                 "ZSM0019",
+        title:              "User-declared Dispose conflicts with generated signature",
+        messageFormat:      "'{0}' declares its own Dispose method with a signature incompatible with the generator's emit. Remove the user-declared Dispose or change the signature to public void Dispose().",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "When timed transitions exist, the generator emits public void Dispose() implementing IDisposable; a user method with a different signature collides with it.");
 }

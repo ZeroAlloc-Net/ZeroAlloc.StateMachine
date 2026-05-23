@@ -49,6 +49,8 @@ machine.Current;                 // Pending
 | [Transitions](core-concepts/transitions.md) | Directed edges, `TryFire`, ordering, entry/exit contract |
 | [Concurrent Mode](core-concepts/concurrent-mode.md) | CAS loop, `Volatile.Read`, hook ordering, guard restrictions |
 | [Composite States](core-concepts/composite-states.md) | Hierarchical sub-FSMs, dispatch order, shallow history |
+| [Timeout Transitions](core-concepts/timeout-transitions.md) | `AfterMs` edges, lazy timers, race-safe CAS, `IDisposable` |
+| [Concurrent Parts](core-concepts/concurrent-parts.md) | Multiple independent FSMs in one class via `[StateMachineGroup]` |
 
 ### Guides
 
@@ -74,3 +76,11 @@ machine.Current;                 // Pending
 | [ZSM0009](diagnostics/ZSM0009.md) | Error | Duplicate composite state |
 | [ZSM0010](diagnostics/ZSM0010.md) | Error | History state without composite |
 | [ZSM0011](diagnostics/ZSM0011.md) | Error | Composite state cannot also be terminal |
+| [ZSM0012](diagnostics/ZSM0012.md) | Error | Timeout transition requires concurrent mode |
+| [ZSM0013](diagnostics/ZSM0013.md) | Error | `AfterMs` must be positive |
+| [ZSM0014](diagnostics/ZSM0014.md) | Error | `[StateMachine]` and `[StateMachineGroup]` are mutually exclusive |
+| [ZSM0015](diagnostics/ZSM0015.md) | Error | Duplicate state machine part name |
+| [ZSM0016](diagnostics/ZSM0016.md) | Error | Transition `Part` mismatch |
+| [ZSM0017](diagnostics/ZSM0017.md) | Error | `[StateMachineGroup]` declared with no parts |
+| [ZSM0018](diagnostics/ZSM0018.md) | Error | Composite state inside a group |
+| [ZSM0019](diagnostics/ZSM0019.md) | Error | Incompatible user-supplied `Dispose` |

@@ -19,7 +19,8 @@ internal static class StateMachineWriter
         }
 
         var keyword = model.IsStruct ? "partial struct" : "partial class";
-        sb.AppendLine($"{keyword} {model.ClassName}");
+        var disposableSuffix = HasAnyTimedEdge(model) ? " : System.IDisposable" : "";
+        sb.AppendLine($"{keyword} {model.ClassName}{disposableSuffix}");
         sb.AppendLine("{");
 
         if (model.Concurrent)
@@ -306,6 +307,9 @@ internal static class StateMachineWriter
         // Volatile long state field
         sb.AppendLine($"    private long _state = (long){st}.{m.InitialState};");
         sb.AppendLine();
+
+        WriteTimerFields(sb, m);
+
         sb.AppendLine($"    /// <summary>Current state (thread-safe read via <see cref=\"System.Threading.Volatile\"/>).</summary>");
         sb.AppendLine($"    public {st} Current => ({st})System.Threading.Volatile.Read(ref _state);");
         sb.AppendLine();
@@ -323,6 +327,8 @@ internal static class StateMachineWriter
 
         // Partial stubs — no guards in concurrent mode
         WriteConcurrentPartialStubs(sb, m);
+
+        WriteDispose(sb, m);
     }
 
     private static void WriteConcurrentTryFire(StringBuilder sb, StateMachineModel m)
@@ -357,6 +363,8 @@ internal static class StateMachineWriter
         sb.AppendLine($"            {{");
         sb.AppendLine($"                OnExit(current, trigger);");
         sb.AppendLine($"                OnEnter(next.Value, current);");
+        WriteTimerDisarmBlocks(sb, m, "                ", "current", partPrefix: null, m.StateTypeFqn);
+        WriteTimerArmBlocks(sb, m, "                ", "next.Value", partPrefix: null, tryFireMethod: "TryFire", m.StateTypeFqn);
         sb.AppendLine($"                return true;");
         sb.AppendLine($"            }}");
         sb.AppendLine($"            // Lost CAS race — retry with fresh current");
@@ -432,5 +440,87 @@ internal static class StateMachineWriter
             sb.AppendLine($"    /// <summary>Called after entering <c>{s}</c>. May be called from multiple threads.</summary>");
             sb.AppendLine($"    partial void OnEnter{s}({st} from);");
         }
+    }
+
+    // ── Timer emit helpers (B3 — [Transition(AfterMs)]) ──────────────────────
+
+    private static void WriteTimerFields(StringBuilder sb, StateMachineModel m, string? partPrefix = null)
+    {
+        var timedEdges = m.Transitions.Where(static t => t.AfterMs > 0);
+        if (partPrefix is null)
+            timedEdges = timedEdges.Where(static t => t.Part is null);
+        else
+            timedEdges = timedEdges.Where(t => string.Equals(t.Part, partPrefix, StringComparison.Ordinal));
+
+        foreach (var t in timedEdges)
+        {
+            var prefix = partPrefix is null ? string.Empty : $"{partPrefix}_";
+            sb.AppendLine($"    private System.Threading.Timer? _timer_{prefix}{t.From}_{t.On};");
+        }
+    }
+
+    private static void WriteTimerArmBlocks(StringBuilder sb, StateMachineModel m,
+        string indent, string stateExpr, string? partPrefix, string tryFireMethod, string stateTypeFqn)
+    {
+        foreach (var t in m.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            if (!string.Equals(t.Part, partPrefix, StringComparison.Ordinal)) continue;
+
+            var prefix = partPrefix is null ? string.Empty : $"{partPrefix}_";
+            var field = $"_timer_{prefix}{t.From}_{t.On}";
+            var triggerFqn = m.TriggerTypeFqn;
+
+            sb.AppendLine($"{indent}if ({stateExpr} == {stateTypeFqn}.{t.From})");
+            sb.AppendLine($"{indent}{{");
+            sb.AppendLine($"{indent}    var __t = {field};");
+            sb.AppendLine($"{indent}    if (__t is null)");
+            sb.AppendLine($"{indent}    {{");
+            sb.AppendLine($"{indent}        var __new = new System.Threading.Timer(");
+            sb.AppendLine($"{indent}            static s => (({m.ClassName})s!).{tryFireMethod}({triggerFqn}.{t.On}),");
+            sb.AppendLine($"{indent}            this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"{indent}        __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
+            sb.AppendLine($"{indent}        if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
+            sb.AppendLine($"{indent}    }}");
+            sb.AppendLine($"{indent}    __t.Change({t.AfterMs}, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"{indent}}}");
+        }
+    }
+
+    private static void WriteTimerDisarmBlocks(StringBuilder sb, StateMachineModel m,
+        string indent, string fromExpr, string? partPrefix, string stateTypeFqn)
+    {
+        foreach (var t in m.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            if (!string.Equals(t.Part, partPrefix, StringComparison.Ordinal)) continue;
+
+            var prefix = partPrefix is null ? string.Empty : $"{partPrefix}_";
+            var field = $"_timer_{prefix}{t.From}_{t.On}";
+            sb.AppendLine($"{indent}if ({fromExpr} == {stateTypeFqn}.{t.From})");
+            sb.AppendLine($"{indent}    {field}?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
+        }
+    }
+
+    private static bool HasAnyTimedEdge(StateMachineModel m) =>
+        m.Transitions.Any(static t => t.AfterMs > 0);
+
+    private static void WriteDispose(StringBuilder sb, StateMachineModel m)
+    {
+        if (!HasAnyTimedEdge(m)) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"    // ── IDisposable — disposes timer fields. Idempotent (Timer.Dispose is idempotent).");
+        sb.AppendLine($"    /// <summary>Disposes all timers owned by this machine.</summary>");
+        sb.AppendLine($"    public void Dispose()");
+        sb.AppendLine($"    {{");
+        foreach (var t in m.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            var prefix = t.Part is null ? string.Empty : $"{t.Part}_";
+            sb.AppendLine($"        _timer_{prefix}{t.From}_{t.On}?.Dispose();");
+        }
+        sb.AppendLine($"        System.GC.SuppressFinalize(this);");
+        sb.AppendLine($"    }}");
     }
 }
