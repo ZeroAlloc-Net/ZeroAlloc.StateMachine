@@ -16,4 +16,12 @@ using System;
 [AttributeUsage(AttributeTargets.Class, AllowMultiple = false)]
 public sealed class StateMachineGroupAttribute : Attribute
 {
+    /// <summary>
+    /// When <c>true</c>, the generator emits a <c>public const string MermaidDiagram</c>
+    /// on the group partial. Each <see cref="StateMachinePartAttribute{TState, TTrigger}"/>
+    /// renders as a top-level <c>state {Name} { ... }</c> block; transitions, terminals,
+    /// timed edges, and guards render per the standard Mermaid rules.
+    /// Default: <c>false</c>.
+    /// </summary>
+    public bool Diagram { get; init; } = false;
 }

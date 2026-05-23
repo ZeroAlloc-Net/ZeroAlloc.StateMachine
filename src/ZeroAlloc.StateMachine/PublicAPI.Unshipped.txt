@@ -12,10 +12,14 @@ ZeroAlloc.StateMachine.HistoryStateAttribute<TState>.State.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute
 ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.get -> bool
 ZeroAlloc.StateMachine.StateMachineAttribute.Concurrent.init -> void
+ZeroAlloc.StateMachine.StateMachineAttribute.Diagram.get -> bool
+ZeroAlloc.StateMachine.StateMachineAttribute.Diagram.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.get -> string!
 ZeroAlloc.StateMachine.StateMachineAttribute.InitialState.init -> void
 ZeroAlloc.StateMachine.StateMachineAttribute.StateMachineAttribute() -> void
 ZeroAlloc.StateMachine.StateMachineGroupAttribute
+ZeroAlloc.StateMachine.StateMachineGroupAttribute.Diagram.get -> bool
+ZeroAlloc.StateMachine.StateMachineGroupAttribute.Diagram.init -> void
 ZeroAlloc.StateMachine.StateMachineGroupAttribute.StateMachineGroupAttribute() -> void
 ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>
 ZeroAlloc.StateMachine.StateMachinePartAttribute<TState, TTrigger>.InitialState.get -> TState
