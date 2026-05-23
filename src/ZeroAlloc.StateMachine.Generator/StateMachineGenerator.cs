@@ -81,6 +81,10 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                  : type.ContainingNamespace.ToDisplayString();
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
+        var groupAttr = ctx.Attributes[0];
+        var diagram = groupAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+
         var parts = CollectGroupParts(type);
 
         ct.ThrowIfCancellationRequested();
@@ -88,7 +92,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         return new StateMachineGroupModel(
             ns, type.Name, parts,
-            Diagram: false,
+            Diagram: diagram,
             diagnostics.ToImmutable());
     }
 
@@ -285,6 +289,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
         var concurrent = smAttr.NamedArguments
             .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
+        var diagram = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
 
         var (transitions, terminalStates, compositeStates, historyStates,
              stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
@@ -313,7 +319,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             triggerTypeFqn, triggerTypeShort!,
             transitions, terminalStates,
             compositeStates, historyStates,
-            Diagram: false,
+            Diagram: diagram,
             diagnostics.ToImmutable());
     }
 
