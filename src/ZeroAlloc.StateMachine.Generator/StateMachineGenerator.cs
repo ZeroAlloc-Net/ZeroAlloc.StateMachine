@@ -219,6 +219,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             diagnostics.Add(Diagnostic.Create(
                 StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
         }
+
+        var hasTimedInGroup = parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
+        AnalyzeMissingHookConstructorInvocation(type, hasTimedInGroup, diagnostics);
     }
 
     // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class
@@ -602,6 +605,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
         AnalyzeDisposeConflict(type, transitions, diagnostics);
         AnalyzeEmptyDiagramRequest(diagram, transitions, type, diagnostics);
+
+        var hasTimed = transitions.Any(static t => t.AfterMs > 0);
+        AnalyzeMissingHookConstructorInvocation(type, hasTimed, diagnostics);
     }
 
     private static void AnalyzeEmptyDiagramRequest(
@@ -616,6 +622,49 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
         diagnostics.Add(Diagnostic.Create(
             StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
+    }
+
+    private static void AnalyzeMissingHookConstructorInvocation(
+        INamedTypeSymbol type,
+        bool hasTimedEdges,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (!hasTimedEdges) return;
+
+        var userCtors = type.InstanceConstructors
+            .Where(c => !c.IsImplicitlyDeclared)
+            .ToArray();
+        if (userCtors.Length == 0) return;
+
+        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+
+        foreach (var ctor in userCtors)
+        {
+            if (CtorInvokesHookConstructor(ctor)) return;
+        }
+
+        diagnostics.Add(Diagnostic.Create(
+            StateMachineDiagnostics.MissingHookConstructorInvocation, location, type.Name));
+    }
+
+    private static bool CtorInvokesHookConstructor(IMethodSymbol ctor)
+    {
+        foreach (var syntaxRef in ctor.DeclaringSyntaxReferences)
+        {
+            var node = syntaxRef.GetSyntax();
+            if (node is null) continue;
+
+            // Walk the ctor body's descendant invocations; look for HookConstructor().
+            foreach (var inv in node.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>())
+            {
+                if (inv.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax id &&
+                    string.Equals(id.Identifier.ValueText, "HookConstructor", StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static void AnalyzeReachability(
