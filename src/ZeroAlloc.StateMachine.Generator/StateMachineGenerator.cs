@@ -654,11 +654,21 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             var node = syntaxRef.GetSyntax();
             if (node is null) continue;
 
-            // Walk the ctor body's descendant invocations; look for HookConstructor().
+            // Walk the ctor body's descendant invocations; look for HookConstructor(),
+            // this.HookConstructor(), or base.HookConstructor().
             foreach (var inv in node.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.InvocationExpressionSyntax>())
             {
-                if (inv.Expression is Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax id &&
-                    string.Equals(id.Identifier.ValueText, "HookConstructor", StringComparison.Ordinal))
+                var name = inv.Expression switch
+                {
+                    Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax id => id.Identifier.ValueText,
+                    Microsoft.CodeAnalysis.CSharp.Syntax.MemberAccessExpressionSyntax
+                    {
+                        Expression: Microsoft.CodeAnalysis.CSharp.Syntax.ThisExpressionSyntax or Microsoft.CodeAnalysis.CSharp.Syntax.BaseExpressionSyntax,
+                        Name: Microsoft.CodeAnalysis.CSharp.Syntax.IdentifierNameSyntax memberId
+                    } => memberId.Identifier.ValueText,
+                    _ => null,
+                };
+                if (string.Equals(name, "HookConstructor", StringComparison.Ordinal))
                 {
                     return true;
                 }
