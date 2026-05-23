@@ -69,6 +69,13 @@ internal static class MermaidDiagramWriter
             if (subModel is null) continue;
 
             sb.Append(indent).Append("state ").Append(c.State).AppendLine(" {");
+
+            var hasHistory = m.HistoryStates.Any(h => string.Equals(h.State, c.State, System.StringComparison.Ordinal));
+            if (hasHistory)
+            {
+                sb.Append(indent).AppendLine("    state H as History");
+            }
+
             WriteIndented(sb, subModel, indent + "    ", resolveSubMachine);
             sb.Append(indent).AppendLine("}");
         }
