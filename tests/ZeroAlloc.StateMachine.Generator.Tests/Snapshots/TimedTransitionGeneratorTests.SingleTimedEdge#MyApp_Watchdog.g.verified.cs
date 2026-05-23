@@ -108,4 +108,23 @@ partial class Watchdog : System.IDisposable
         _timer_Working_Timeout?.Dispose();
         System.GC.SuppressFinalize(this);
     }
+
+    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>
+    private void ArmInitialStateTimers()
+    {
+        var current = Current;
+        if (current == global::MyApp.WdState.Working)
+        {
+            var __t = _timer_Working_Timeout;
+            if (__t is null)
+            {
+                var __new = new System.Threading.Timer(
+                    static s => ((Watchdog)s!).TryFire(global::MyApp.WdTrigger.Timeout),
+                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                __t = System.Threading.Interlocked.CompareExchange(ref _timer_Working_Timeout, __new, null) ?? __new;
+                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
+            }
+            __t.Change(5000, System.Threading.Timeout.Infinite);
+        }
+    }
 }

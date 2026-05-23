@@ -353,6 +353,8 @@ internal static class StateMachineWriter
         WriteConcurrentPartialStubs(sb, m);
 
         WriteDispose(sb, m);
+
+        WriteArmInitialStateTimers(sb, m);
     }
 
     private static void WriteConcurrentTryFire(StringBuilder sb, StateMachineModel m)
@@ -528,6 +530,42 @@ internal static class StateMachineWriter
 
     private static bool HasAnyTimedEdge(StateMachineModel m) =>
         m.Transitions.Any(static t => t.AfterMs > 0);
+
+    private static void WriteArmInitialStateTimers(StringBuilder sb, StateMachineModel m)
+    {
+        if (!HasAnyTimedEdge(m)) return;
+
+        var st = m.StateTypeFqn;
+
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>");
+        sb.AppendLine($"    private void ArmInitialStateTimers()");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        var current = Current;");
+
+        foreach (var t in m.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            if (t.Part is not null) continue;  // group parts handled separately
+
+            var field = $"_timer_{t.From}_{t.On}";
+            sb.AppendLine($"        if (current == {st}.{t.From})");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var __t = {field};");
+            sb.AppendLine($"            if (__t is null)");
+            sb.AppendLine($"            {{");
+            sb.AppendLine($"                var __new = new System.Threading.Timer(");
+            sb.AppendLine($"                    static s => (({m.ClassName})s!).TryFire({m.TriggerTypeFqn}.{t.On}),");
+            sb.AppendLine($"                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"                __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
+            sb.AppendLine($"                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
+            sb.AppendLine($"            }}");
+            sb.AppendLine($"            __t.Change({t.AfterMs}, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"        }}");
+        }
+
+        sb.AppendLine($"    }}");
+    }
 
     private static void WriteDispose(StringBuilder sb, StateMachineModel m)
     {
