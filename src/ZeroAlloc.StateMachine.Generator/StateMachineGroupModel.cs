@@ -8,5 +8,6 @@ internal sealed record StateMachineGroupModel(
     string? Namespace,
     string ClassName,
     ImmutableArray<StateMachinePartModel> Parts,
+    bool Diagram,
     ImmutableArray<Diagnostic> Diagnostics
 );

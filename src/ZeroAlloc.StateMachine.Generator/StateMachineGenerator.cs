@@ -87,7 +87,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeGroupDiagnostics(type, parts, diagnostics);
 
         return new StateMachineGroupModel(
-            ns, type.Name, parts, diagnostics.ToImmutable());
+            ns, type.Name, parts,
+            Diagram: false,
+            diagnostics.ToImmutable());
     }
 
     private readonly record struct PartDeclaration(
@@ -311,6 +313,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             triggerTypeFqn, triggerTypeShort!,
             transitions, terminalStates,
             compositeStates, historyStates,
+            Diagram: false,
             diagnostics.ToImmutable());
     }
 
