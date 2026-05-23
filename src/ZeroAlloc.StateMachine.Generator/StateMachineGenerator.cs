@@ -102,12 +102,14 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
 
         var parts = CollectGroupParts(type);
+        var hasUserCtor = type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared);
 
         ct.ThrowIfCancellationRequested();
         AnalyzeGroupDiagnostics(type, parts, diagram, diagnostics);
 
         return new StateMachineGroupModel(
             ns, type.Name, parts,
+            HasUserCtor: hasUserCtor,
             Diagram: diagram,
             diagnostics.ToImmutable());
     }

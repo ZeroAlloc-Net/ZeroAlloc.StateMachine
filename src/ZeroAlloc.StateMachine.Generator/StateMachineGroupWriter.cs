@@ -30,6 +30,7 @@ internal static class StateMachineGroupWriter
         }
 
         if (hasAnyTimer) WriteGroupDispose(sb, m);
+        WriteGroupHookAndCtor(sb, m);
 
         if (m.Diagram)
         {
@@ -51,6 +52,7 @@ internal static class StateMachineGroupWriter
         WritePartCurrentProperty(sb, p);
         WritePartTryFire(sb, className, p);
         WritePartHooks(sb, p);
+        WritePartArmInitialStateTimers(sb, className, p);
     }
 
     private static void WritePartFields(StringBuilder sb, StateMachinePartModel p)
@@ -184,6 +186,65 @@ internal static class StateMachineGroupWriter
         {
             sb.AppendLine($"    /// <summary>Called after entering <c>{s}</c> on part \"{p.Name}\".</summary>");
             sb.AppendLine($"    partial void OnEnter{p.Name}{s}({st} from);");
+        }
+    }
+
+    private static void WritePartArmInitialStateTimers(StringBuilder sb, string className, StateMachinePartModel p)
+    {
+        var hasTimed = p.Transitions.Any(static t => t.AfterMs > 0);
+        if (!hasTimed) return;
+
+        var st = p.StateTypeFqn;
+        var tr = p.TriggerTypeFqn;
+
+        sb.AppendLine();
+        sb.AppendLine($"    private void ArmInitialStateTimers_{p.Name}()");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        var current = {p.Name}Current;");
+        foreach (var t in p.Transitions)
+        {
+            if (t.AfterMs == 0) continue;
+            var field = $"_timer_{p.Name}_{t.From}_{t.On}";
+            sb.AppendLine($"        if (current == {st}.{t.From})");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            var __t = {field};");
+            sb.AppendLine($"            if (__t is null)");
+            sb.AppendLine($"            {{");
+            sb.AppendLine($"                var __new = new System.Threading.Timer(");
+            sb.AppendLine($"                    static s => (({className})s!).TryFire{p.Name}({tr}.{t.On}),");
+            sb.AppendLine($"                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"                __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
+            sb.AppendLine($"                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
+            sb.AppendLine($"            }}");
+            sb.AppendLine($"            __t.Change({t.AfterMs}, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"        }}");
+        }
+        sb.AppendLine($"    }}");
+    }
+
+    private static void WriteGroupHookAndCtor(StringBuilder sb, StateMachineGroupModel m)
+    {
+        var anyTimed = m.Parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
+        if (!anyTimed) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Generator-emitted partial hook invoked from the constructor.</summary>");
+        sb.AppendLine($"    private void HookConstructor()");
+        sb.AppendLine($"    {{");
+        foreach (var p in m.Parts)
+        {
+            if (p.Transitions.Any(static t => t.AfterMs > 0))
+                sb.AppendLine($"        ArmInitialStateTimers_{p.Name}();");
+        }
+        sb.AppendLine($"    }}");
+
+        if (!m.HasUserCtor)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"    public {m.ClassName}()");
+            sb.AppendLine($"    {{");
+            sb.AppendLine($"        HookConstructor();");
+            sb.AppendLine($"    }}");
         }
     }
 
