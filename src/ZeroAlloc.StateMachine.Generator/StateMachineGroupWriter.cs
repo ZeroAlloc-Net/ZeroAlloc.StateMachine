@@ -31,6 +31,16 @@ internal static class StateMachineGroupWriter
 
         if (hasAnyTimer) WriteGroupDispose(sb, m);
 
+        if (m.Diagram)
+        {
+            var diagram = MermaidDiagramWriter.Write(m);
+            sb.AppendLine();
+            sb.AppendLine($"    /// <summary>Mermaid stateDiagram-v2 representation of this state-machine group.</summary>");
+            sb.Append($"    public const string MermaidDiagram = ");
+            sb.Append("@\"").Append(diagram.Replace("\"", "\"\"")).Append('"');
+            sb.AppendLine(";");
+        }
+
         sb.AppendLine("}");
         return sb.ToString();
     }
