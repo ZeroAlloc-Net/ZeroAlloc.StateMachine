@@ -31,26 +31,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .Where(static m => m is not null)
             .Select(static (m, _) => m!);
 
-        context.RegisterSourceOutput(models, static (ctx, model) =>
-        {
-            foreach (var diag in model.Diagnostics)
-                ctx.ReportDiagnostic(diag);
-
-            // Do not emit source if any diagnostic is a hard error — the model is invalid
-            if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
-                return;
-
-            // Skip emit when there are no transitions — the model was only built so that
-            // AnalyzeDiagnostics could fire ZSM0020 (Diagram = true on an empty machine).
-            if (model.Transitions.IsEmpty)
-                return;
-
-            var source = StateMachineWriter.Write(model);
-            var hintName = model.Namespace is null
-                ? $"{model.ClassName}.g.cs"
-                : $"{model.Namespace}_{model.ClassName}.g.cs";
-            ctx.AddSource(hintName, source);
-        });
+        context.RegisterSourceOutput(
+            models.Combine(context.CompilationProvider),
+            static (ctx, tuple) => EmitStateMachine(ctx, tuple.Left, tuple.Right));
 
         var groupModels = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -74,6 +57,34 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 : $"{model.Namespace}_{model.ClassName}.Group.g.cs";
             ctx.AddSource(hintName, source);
         });
+    }
+
+    private static void EmitStateMachine(SourceProductionContext ctx, StateMachineModel model, Compilation compilation)
+    {
+        foreach (var diag in model.Diagnostics)
+            ctx.ReportDiagnostic(diag);
+
+        // Do not emit source if any diagnostic is a hard error — the model is invalid
+        if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
+            return;
+
+        // Skip emit when there are no transitions — the model was only built so that
+        // AnalyzeDiagnostics could fire ZSM0020 (Diagram = true on an empty machine).
+        if (model.Transitions.IsEmpty)
+            return;
+
+        System.Func<string, StateMachineModel?> resolver = fqn =>
+        {
+            var clean = fqn.StartsWith("global::", StringComparison.Ordinal) ? fqn.Substring(8) : fqn;
+            var sym = compilation.GetTypeByMetadataName(clean);
+            return sym is null ? null : BuildModelFromSymbol(sym);
+        };
+
+        var source = StateMachineWriter.Write(model, resolver);
+        var hintName = model.Namespace is null
+            ? $"{model.ClassName}.g.cs"
+            : $"{model.Namespace}_{model.ClassName}.g.cs";
+        ctx.AddSource(hintName, source);
     }
 
     private static StateMachineGroupModel? ParseGroup(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
