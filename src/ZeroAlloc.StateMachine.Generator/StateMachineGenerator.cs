@@ -291,6 +291,54 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
     }
 
+    /// <summary>
+    /// Build a <see cref="StateMachineModel"/> from a raw <see cref="INamedTypeSymbol"/> without
+    /// going through <see cref="GeneratorAttributeSyntaxContext"/>. Used by the Mermaid diagram
+    /// writer to resolve sub-FSM types referenced by composite states at parent-emit time.
+    /// </summary>
+    /// <remarks>
+    /// This does not run diagnostic analysis — the returned model's
+    /// <see cref="StateMachineModel.Diagnostics"/> is always empty. Sub-FSMs that lack the
+    /// <c>[StateMachine]</c> attribute, lack transitions, or lack a resolvable initial state
+    /// return <c>null</c>.
+    /// </remarks>
+    internal static StateMachineModel? BuildModelFromSymbol(INamedTypeSymbol type)
+    {
+        var smAttr = type.GetAttributes()
+            .FirstOrDefault(a => string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
+        if (smAttr is null) return null;
+
+        var initialState = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
+        var concurrent = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
+        var diagram = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+
+        var (transitions, terminalStates, compositeStates, historyStates,
+             stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
+            = CollectAttributes(type);
+
+        if (transitions.IsEmpty) return null;
+        if (stateTypeFqn is null || triggerTypeFqn is null) return null;
+        if (string.IsNullOrEmpty(initialState)) return null;
+
+        var ns = type.ContainingNamespace.IsGlobalNamespace
+                 ? null
+                 : type.ContainingNamespace.ToDisplayString();
+        var isStruct = type.TypeKind == TypeKind.Struct;
+
+        return new StateMachineModel(
+            ns, type.Name, isStruct,
+            initialState, concurrent,
+            stateTypeFqn, stateTypeShort!,
+            triggerTypeFqn, triggerTypeShort!,
+            transitions, terminalStates,
+            compositeStates, historyStates,
+            Diagram: diagram,
+            Diagnostics: ImmutableArray<Diagnostic>.Empty);
+    }
+
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
     {
         if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
