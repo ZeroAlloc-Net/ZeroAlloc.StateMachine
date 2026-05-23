@@ -59,6 +59,42 @@ internal static class MermaidDiagramWriter
         }
     }
 
+    /// <summary>Emit a Mermaid stateDiagram-v2 body for a state-machine group model.</summary>
+    /// <param name="m">The group model to render.</param>
+    public static string Write(StateMachineGroupModel m)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("stateDiagram-v2");
+
+        foreach (var p in m.Parts)
+        {
+            sb.Append("    state ").Append(p.Name).AppendLine(" {");
+            WritePart(sb, p, indent: "        ");
+            sb.AppendLine("    }");
+        }
+
+        return sb.ToString().TrimEnd();
+    }
+
+    private static void WritePart(StringBuilder sb, StateMachinePartModel p, string indent)
+    {
+        sb.Append(indent).Append("[*] --> ").AppendLine(p.InitialState);
+
+        foreach (var t in p.Transitions)
+        {
+            sb.Append(indent);
+            sb.Append(t.From).Append(" --> ").Append(t.To).Append(": ").Append(t.On);
+            if (t.AfterMs > 0)
+                sb.Append(" (after ").Append(t.AfterMs).Append("ms)");
+            if (t.HasGuard)
+                sb.Append(" [guard]");
+            sb.AppendLine();
+        }
+
+        // Groups never have composites or history (ZSM0018 blocks composites in groups);
+        // groups also don't have a TerminalStates field on the part model.
+    }
+
     private static void WriteComposites(StringBuilder sb, StateMachineModel m, string indent, System.Func<string, StateMachineModel?>? resolveSubMachine)
     {
         if (resolveSubMachine is null) return;
