@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.3.0...v1.4.0) (2026-05-23)
+
+
+### Features
+
+* timeout transitions + concurrent state parts (B3+B5) ([#27](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/27)) ([c41b019](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/c41b019da2b1be91e9d7e8adb13cafbf6ba8ea22))
+
 ## [1.3.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.2.0...v1.3.0) (2026-05-22)
 
 
