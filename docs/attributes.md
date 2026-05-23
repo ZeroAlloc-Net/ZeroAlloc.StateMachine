@@ -25,6 +25,7 @@ Marks a `partial` class or struct as a source-generated state machine. The gener
 |----------|------|----------|---------|-------------|
 | `InitialState` | `string` | yes | — | The name of the initial state. **Always use `nameof(...)`** to keep it refactor-safe. |
 | `Concurrent` | `bool` | no | `false` | When `true`, state is stored as `volatile long` and transitions use `Interlocked.CompareExchange`. Safe for concurrent callers. Guards are not generated in this mode. |
+| `Diagram` | `bool` | no | `false` | When `true`, the generator emits a `public const string MermaidDiagram` on the partial containing a Mermaid `stateDiagram-v2` rendering of the machine. See [Diagram Export](core-concepts/diagram-export.md). Emits **ZSM0020** on a class with no transitions. |
 
 ### Examples
 
@@ -224,7 +225,9 @@ Marks a `partial` class as a group of independent concurrent state machines. Eac
 
 ### Properties
 
-None.
+| Property | Type | Required | Default | Description |
+|----------|------|----------|---------|-------------|
+| `Diagram` | `bool` | no | `false` | When `true`, the generator emits a `public const string MermaidDiagram` on the group partial. Each `[StateMachinePart]` renders as a top-level `state Name { ... }` block. See [Diagram Export](core-concepts/diagram-export.md). Emits **ZSM0020** on a group whose parts declare no transitions. |
 
 ### Example
 
