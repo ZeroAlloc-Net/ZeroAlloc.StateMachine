@@ -79,6 +79,7 @@ partial class Multi : System.IDisposable
     internal void Reset()
     {
         _state = (long)global::MyApp.MS.A;
+        ArmInitialStateTimers();
     }
 
     /// <summary>Sets the machine to <paramref name="state"/>. Does NOT fire OnExit/OnEnter -- state-population only.</summary>
@@ -86,6 +87,7 @@ partial class Multi : System.IDisposable
     internal void ResetTo(global::MyApp.MS state)
     {
         _state = (long)state;
+        ArmInitialStateTimers();
     }
 
     private void OnExit(global::MyApp.MS state, global::MyApp.MT trigger)

@@ -63,6 +63,7 @@ partial class Watchdog : System.IDisposable
     internal void Reset()
     {
         _state = (long)global::MyApp.WdState.Idle;
+        ArmInitialStateTimers();
     }
 
     /// <summary>Sets the machine to <paramref name="state"/>. Does NOT fire OnExit/OnEnter -- state-population only.</summary>
@@ -70,6 +71,7 @@ partial class Watchdog : System.IDisposable
     internal void ResetTo(global::MyApp.WdState state)
     {
         _state = (long)state;
+        ArmInitialStateTimers();
     }
 
     private void OnExit(global::MyApp.WdState state, global::MyApp.WdTrigger trigger)

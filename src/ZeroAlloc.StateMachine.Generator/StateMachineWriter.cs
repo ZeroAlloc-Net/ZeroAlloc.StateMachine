@@ -422,6 +422,11 @@ internal static class StateMachineWriter
             sb.AppendLine($"        _subFsm_{c.State}.Reset();");
         }
 
+        if (HasAnyTimedEdge(m))
+        {
+            sb.AppendLine($"        ArmInitialStateTimers();");
+        }
+
         sb.AppendLine($"    }}");
         sb.AppendLine();
 
@@ -441,6 +446,11 @@ internal static class StateMachineWriter
             }
             sb.AppendLine($"            default: break;");
             sb.AppendLine($"        }}");
+        }
+
+        if (HasAnyTimedEdge(m))
+        {
+            sb.AppendLine($"        ArmInitialStateTimers();");
         }
 
         sb.AppendLine($"    }}");
