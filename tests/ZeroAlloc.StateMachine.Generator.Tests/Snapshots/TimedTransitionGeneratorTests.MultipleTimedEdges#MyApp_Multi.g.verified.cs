@@ -163,4 +163,16 @@ partial class Multi : System.IDisposable
             __t.Change(2000, System.Threading.Timeout.Infinite);
         }
     }
+
+    /// <summary>Generator-emitted partial hook invoked from the constructor. Arms initial-state timers.</summary>
+    private void HookConstructor()
+    {
+        ArmInitialStateTimers();
+    }
+
+    /// <summary>Default generator-emitted constructor; calls HookConstructor() to arm initial-state timers.</summary>
+    public Multi()
+    {
+        HookConstructor();
+    }
 }

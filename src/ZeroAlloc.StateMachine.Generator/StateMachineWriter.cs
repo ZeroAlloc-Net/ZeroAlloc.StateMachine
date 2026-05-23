@@ -355,6 +355,8 @@ internal static class StateMachineWriter
         WriteDispose(sb, m);
 
         WriteArmInitialStateTimers(sb, m);
+
+        WriteHookConstructorAndCtor(sb, m);
     }
 
     private static void WriteConcurrentTryFire(StringBuilder sb, StateMachineModel m)
@@ -584,5 +586,27 @@ internal static class StateMachineWriter
         }
         sb.AppendLine($"        System.GC.SuppressFinalize(this);");
         sb.AppendLine($"    }}");
+    }
+
+    private static void WriteHookConstructorAndCtor(StringBuilder sb, StateMachineModel m)
+    {
+        if (!HasAnyTimedEdge(m)) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Generator-emitted partial hook invoked from the constructor. Arms initial-state timers.</summary>");
+        sb.AppendLine($"    private void HookConstructor()");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        ArmInitialStateTimers();");
+        sb.AppendLine($"    }}");
+
+        if (!m.HasUserCtor)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"    /// <summary>Default generator-emitted constructor; calls HookConstructor() to arm initial-state timers.</summary>");
+            sb.AppendLine($"    public {m.ClassName}()");
+            sb.AppendLine($"    {{");
+            sb.AppendLine($"        HookConstructor();");
+            sb.AppendLine($"    }}");
+        }
     }
 }

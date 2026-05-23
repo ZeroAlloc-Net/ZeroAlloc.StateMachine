@@ -18,6 +18,7 @@ internal sealed record StateMachineModel(
     ImmutableArray<string> TerminalStates,    // short enum member names
     ImmutableArray<CompositeStateModel> CompositeStates,
     ImmutableArray<HistoryStateModel> HistoryStates,
+    bool HasUserCtor,
     bool Diagram,
     ImmutableArray<Diagnostic> Diagnostics
 );

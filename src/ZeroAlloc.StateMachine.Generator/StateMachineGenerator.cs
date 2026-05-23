@@ -338,6 +338,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                  ? null
                  : type.ContainingNamespace.ToDisplayString();
         var isStruct = type.TypeKind == TypeKind.Struct;
+        var hasUserCtor = type.InstanceConstructors
+            .Any(c => !c.IsImplicitlyDeclared);
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
@@ -346,6 +348,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             triggerTypeFqn, triggerTypeShort!,
             transitions, terminalStates,
             compositeStates, historyStates,
+            HasUserCtor: hasUserCtor,
             Diagram: diagram,
             Diagnostics: ImmutableArray<Diagnostic>.Empty);
     }
@@ -379,6 +382,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                      ? null
                      : type.ContainingNamespace.ToDisplayString();
         var isStruct = type.TypeKind == TypeKind.Struct;
+        var hasUserCtor = type.InstanceConstructors
+            .Any(c => !c.IsImplicitlyDeclared);
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
         ct.ThrowIfCancellationRequested();
@@ -398,6 +403,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             triggerTypeShort ?? string.Empty,
             transitions, terminalStates,
             compositeStates, historyStates,
+            HasUserCtor: hasUserCtor,
             Diagram: diagram,
             diagnostics.ToImmutable());
     }

@@ -127,4 +127,16 @@ partial class Watchdog : System.IDisposable
             __t.Change(5000, System.Threading.Timeout.Infinite);
         }
     }
+
+    /// <summary>Generator-emitted partial hook invoked from the constructor. Arms initial-state timers.</summary>
+    private void HookConstructor()
+    {
+        ArmInitialStateTimers();
+    }
+
+    /// <summary>Default generator-emitted constructor; calls HookConstructor() to arm initial-state timers.</summary>
+    public Watchdog()
+    {
+        HookConstructor();
+    }
 }
