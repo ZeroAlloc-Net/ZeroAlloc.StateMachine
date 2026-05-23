@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.4.0...v1.5.0) (2026-05-23)
+
+
+### Features
+
+* Mermaid diagram export (B4) + initial-state arm fix ([#29](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/29)) ([ca73708](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/ca737085b0bb42e0d58354164294e3d86f8dbb68))
+
 ## [1.4.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.3.0...v1.4.0) (2026-05-23)
 
 
