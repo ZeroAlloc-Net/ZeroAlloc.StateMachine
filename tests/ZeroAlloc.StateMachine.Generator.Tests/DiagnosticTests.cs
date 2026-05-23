@@ -423,4 +423,63 @@ public partial class M
         var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
         Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0019", StringComparison.Ordinal));
     }
+
+    [Fact]
+    public async Task ZSM0020_FiresWhen_Diagram_OnEmptyClass()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A } public enum T { Go }
+[StateMachine(InitialState = ""A"", Diagram = true)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0020", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0020_FiresWhen_Diagram_OnEmptyGroup()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+[StateMachineGroup(Diagram = true)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0020", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0021_FiresWhen_UserCtor_DoesNotCall_HookConstructor()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, AfterMs = 1000)]
+public partial class M
+{
+    public M(int x) { /* does NOT call HookConstructor */ }
+}
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.Contains(diags, d => string.Equals(d.Id, "ZSM0021", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0021_DoesNotFire_When_UserCtor_Calls_HookConstructor()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, AfterMs = 1000)]
+public partial class M
+{
+    public M(int x) { HookConstructor(); }
+}
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.DoesNotContain(diags, d => string.Equals(d.Id, "ZSM0021", StringComparison.Ordinal));
+    }
 }
