@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.0...v1.5.1) (2026-05-24)
+
+
+### Documentation
+
+* **backlog:** mark B1-B5 shipped with PR references ([#31](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/31)) ([a5c3b05](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/a5c3b052c54f231ca652c27934be764bccff53c3))
+
 ## [1.5.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.4.0...v1.5.0) (2026-05-23)
 
 
