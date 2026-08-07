@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.1...v1.5.2) (2026-08-07)
+
+
+### Bug Fixes
+
+* **generator:** suppress EPS06 for Roslyn 4.14's larger pipeline struct ([#48](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/48)) ([7c3bdfa](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/7c3bdfa35111a14cb42757629824509f55c7c033))
+
 ## [1.5.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.0...v1.5.1) (2026-05-24)
 
 
