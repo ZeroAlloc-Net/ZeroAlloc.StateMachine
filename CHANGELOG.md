@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.2...v1.5.3) (2026-09-19)
+
+
+### Bug Fixes
+
+* **ci:** stamp the assembly version when publishing from a manifest ([#115](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/115)) ([e4788b7](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/e4788b7f2eaece6d5cbab8574fe1b6467bb7a857))
+
 ## [1.5.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.1...v1.5.2) (2026-08-07)
 
 
