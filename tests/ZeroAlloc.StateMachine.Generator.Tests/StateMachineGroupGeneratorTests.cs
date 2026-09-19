@@ -3,7 +3,7 @@ namespace ZeroAlloc.StateMachine.Generator.Tests;
 public class StateMachineGroupGeneratorTests
 {
     [Fact]
-    public Task TwoParts()
+    public void TwoParts()
     {
         const string source = @"
 using ZeroAlloc.StateMachine;
@@ -23,11 +23,11 @@ public enum ConnTrigger { Connect, Disconnect }
 [Transition<ConnState, ConnTrigger>(From = ConnState.Connected,    On = ConnTrigger.Disconnect, To = ConnState.Disconnected, Part = ""Connection"")]
 public partial class Device { }
 ";
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task TwoPartsOneTimedEdge()
+    public void TwoPartsOneTimedEdge()
     {
         const string source = @"
 using ZeroAlloc.StateMachine;
@@ -47,6 +47,6 @@ public enum ConnTrigger { Connect, Disconnect }
 [Transition<ConnState, ConnTrigger>(From = ConnState.Connected,    On = ConnTrigger.Disconnect, To = ConnState.Disconnected, Part = ""Connection"")]
 public partial class DeviceTimed { }
 ";
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 }

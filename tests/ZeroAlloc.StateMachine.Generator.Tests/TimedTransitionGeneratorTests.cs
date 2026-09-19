@@ -3,7 +3,7 @@ namespace ZeroAlloc.StateMachine.Generator.Tests;
 public class TimedTransitionGeneratorTests
 {
     [Fact]
-    public Task SingleTimedEdge()
+    public void SingleTimedEdge()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -21,11 +21,11 @@ public class TimedTransitionGeneratorTests
             public partial class Watchdog { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task MultipleTimedEdges()
+    public void MultipleTimedEdges()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -42,6 +42,6 @@ public class TimedTransitionGeneratorTests
             public partial class Multi { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 }

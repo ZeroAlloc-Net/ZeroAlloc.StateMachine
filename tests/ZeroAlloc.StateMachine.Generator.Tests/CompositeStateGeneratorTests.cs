@@ -6,7 +6,7 @@ namespace ZeroAlloc.StateMachine.Generator.Tests;
 public class CompositeStateGeneratorTests
 {
     [Fact]
-    public Task Basic_OneComposite_NoHistory()
+    public void Basic_OneComposite_NoHistory()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -30,11 +30,11 @@ public class CompositeStateGeneratorTests
             public partial class ParentMachine { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task WithHistory_RestoresLeaf()
+    public void WithHistory_RestoresLeaf()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -58,11 +58,11 @@ public class CompositeStateGeneratorTests
             public partial class ParentMachine { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task Nested_TwoLevelsDeep()
+    public void Nested_TwoLevelsDeep()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -89,11 +89,11 @@ public class CompositeStateGeneratorTests
             public partial class TopFsm { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task MultipleComposites_OneParent()
+    public void MultipleComposites_OneParent()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -122,6 +122,6 @@ public class CompositeStateGeneratorTests
             public partial class Machine { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 }

@@ -1,12 +1,14 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 
+using ZeroAlloc.TestHelpers;
+
 namespace ZeroAlloc.StateMachine.Generator.Tests;
 
 public class GeneratorSnapshotTests
 {
     [Fact]
-    public Task BasicMachine_GeneratesExpectedCode()
+    public void BasicMachine_GeneratesExpectedCode()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -23,11 +25,11 @@ public class GeneratorSnapshotTests
             public partial class OrderMachine { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task MachineWithGuard_EmitsGuardStubAndWhenClause()
+    public void MachineWithGuard_EmitsGuardStubAndWhenClause()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -44,11 +46,11 @@ public class GeneratorSnapshotTests
             public partial class GuardedMachine { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task ConcurrentMachine_EmitsInterlockedCompareExchange()
+    public void ConcurrentMachine_EmitsInterlockedCompareExchange()
     {
         var source = """
             using ZeroAlloc.StateMachine;
@@ -66,6 +68,6 @@ public class GeneratorSnapshotTests
             public partial class CircuitBreakerFsm { }
             """;
 
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 }
