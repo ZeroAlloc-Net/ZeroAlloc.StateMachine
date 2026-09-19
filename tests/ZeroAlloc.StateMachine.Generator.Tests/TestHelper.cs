@@ -5,6 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
+using ZeroAlloc.TestHelpers;
+
 namespace ZeroAlloc.StateMachine.Generator.Tests;
 
 internal static class TestHelper
@@ -12,7 +14,7 @@ internal static class TestHelper
     private static readonly CSharpParseOptions ParseOptions =
         CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
 
-    public static Task Verify<TGenerator>(string source)
+    public static void Verify<TGenerator>(string source)
         where TGenerator : IIncrementalGenerator, new()
     {
         var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
@@ -37,7 +39,7 @@ internal static class TestHelper
             .WithUpdatedParseOptions(ParseOptions)
             .RunGenerators(compilation);
 
-        return VerifyXunit.Verifier.Verify(driver).UseDirectory("Snapshots");
+        GeneratorSnapshot.Verify(driver);
     }
 
     public static Task<IReadOnlyList<Diagnostic>> GetDiagnostics<TGenerator>(string source)
