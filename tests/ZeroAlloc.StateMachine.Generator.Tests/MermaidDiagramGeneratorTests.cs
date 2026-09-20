@@ -6,7 +6,7 @@ using Xunit;
 public class MermaidDiagramGeneratorTests
 {
     [Fact]
-    public Task Flat_Diagram()
+    public void Flat_Diagram()
     {
         const string source = @"
 using ZeroAlloc.StateMachine;
@@ -21,11 +21,11 @@ public enum OT { Submit, Ship, Cancel }
 [Terminal<OS>(State = OS.Shipped)]
 public partial class Order { }
 ";
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task Composite_Diagram()
+    public void Composite_Diagram()
     {
         const string source = @"
 using ZeroAlloc.StateMachine;
@@ -50,11 +50,11 @@ public enum AppState { Idle, Loading, Ready }
 [Terminal<AppState>(State = AppState.Ready)]
 public partial class App { }
 ";
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 
     [Fact]
-    public Task Group_Diagram()
+    public void Group_Diagram()
     {
         const string source = @"
 using ZeroAlloc.StateMachine;
@@ -74,6 +74,6 @@ public enum ConnT { Connect, Disconnect }
 [Transition<ConnS, ConnT>(From = ConnS.Connected,    On = ConnT.Disconnect, To = ConnS.Disconnected, Part = ""Conn"")]
 public partial class Device { }
 ";
-        return TestHelper.Verify<StateMachineGenerator>(source);
+        TestHelper.Verify<StateMachineGenerator>(source);
     }
 }
