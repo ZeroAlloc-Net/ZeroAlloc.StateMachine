@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.3...v1.5.4) (2026-09-20)
+
+
+### Bug Fixes
+
+* **ci:** pin the SDK floor at the .NET 10 GA band, not the newest patch ([#120](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/120)) ([29d5e17](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/29d5e17d1c74ca7b8577bc5a05150da4d8772098))
+
 ## [1.5.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.2...v1.5.3) (2026-09-19)
 
 
