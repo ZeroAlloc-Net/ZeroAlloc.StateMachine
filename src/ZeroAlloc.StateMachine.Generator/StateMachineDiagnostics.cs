@@ -25,11 +25,11 @@ internal static class StateMachineDiagnostics
     public static readonly DiagnosticDescriptor SingleUseTrigger = new(
         id:                 "ZSM0003",
         title:              "Single-use trigger",
-        messageFormat:      "Trigger '{0}' on '{1}' appears in only one transition. Verify this is not a typo.",
+        messageFormat:      "Trigger '{0}' on '{1}' is used once; did you mean '{2}'?",
         category:           "ZeroAlloc.StateMachine",
         defaultSeverity:    DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
-        description:        "If intentional, suppress with #pragma warning disable ZSM0003.");
+        description:        "A trigger used in only one transition has a name close to a trigger used in several, so it is probably a typo. Use the intended trigger, or give the single-use trigger a clearly different name.");
 
     public static readonly DiagnosticDescriptor StructConcurrentNotSupported = new(
         id:                 "ZSM0004",

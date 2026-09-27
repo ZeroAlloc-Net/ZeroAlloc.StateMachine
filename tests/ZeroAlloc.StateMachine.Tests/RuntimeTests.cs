@@ -1,46 +1,4 @@
-using ZeroAlloc.StateMachine;
-
-#pragma warning disable ZSM0003 // single-use trigger — intentional in test machines
-#pragma warning disable MA0048  // file name must match type name — multiple types in one test file
-#pragma warning disable MA0016  // prefer collection abstraction — List<string> is fine in tests
-
 namespace ZeroAlloc.StateMachine.Tests;
-
-// ── Test machines declared directly (generator compiles them) ───────────────
-
-public enum OrderState   { Idle, Pending, Processing, Shipped, Cancelled }
-public enum OrderTrigger { Submit, Pay, Ship, Cancel }
-
-[StateMachine(InitialState = nameof(OrderState.Idle))]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Idle,       On = OrderTrigger.Submit, To = OrderState.Pending,    When = true)]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Pending,    On = OrderTrigger.Pay,    To = OrderState.Processing)]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Processing, On = OrderTrigger.Ship,   To = OrderState.Shipped)]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Pending,    On = OrderTrigger.Cancel, To = OrderState.Cancelled)]
-[Terminal<OrderState>(State = OrderState.Shipped)]
-[Terminal<OrderState>(State = OrderState.Cancelled)]
-public partial class OrderMachine
-{
-    private bool _canSubmit = true;
-    public void SetCanSubmit(bool value) => _canSubmit = value;
-    private partial bool GuardSubmit(OrderState from, OrderTrigger on) => _canSubmit;
-
-    public List<string> Log { get; } = new();
-    partial void OnEnterPending(OrderState from)  => Log.Add($"enter:Pending from:{from}");
-    partial void OnExitPending(OrderTrigger on)   => Log.Add($"exit:Pending on:{on}");
-}
-
-// Concurrent circuit breaker
-public enum CbState   { Closed, Open, HalfOpen }
-public enum CbTrigger { Trip, Probe, Reset }
-
-[StateMachine(InitialState = nameof(CbState.Closed), Concurrent = true)]
-[Transition<CbState, CbTrigger>(From = CbState.Closed,   On = CbTrigger.Trip,  To = CbState.Open)]
-[Transition<CbState, CbTrigger>(From = CbState.Open,     On = CbTrigger.Probe, To = CbState.HalfOpen)]
-[Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Reset, To = CbState.Closed)]
-[Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
-public partial class CircuitBreakerFsm { }
-
-// ── Tests ────────────────────────────────────────────────────────────────────
 
 public class RuntimeTests
 {

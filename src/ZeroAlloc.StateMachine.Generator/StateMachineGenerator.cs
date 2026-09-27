@@ -725,40 +725,105 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         string[] allTriggers,
         ImmutableArray<Diagnostic>.Builder diagnostics)
     {
-        // ZSM0003: triggers used exactly once (only meaningful if more than one trigger is used total)
+        // ZSM0003: a trigger used in exactly one transition whose name is close to a trigger
+        // used in several. A typo appears once, next to the real trigger it was meant to be.
+        // A single-use trigger with a distinct name is a normal exit event and is not flagged.
         var triggerCounts = new System.Collections.Generic.Dictionary<string, int>(StringComparer.Ordinal);
+        var distinctTriggers = new System.Collections.Generic.List<string>();
         foreach (var trigger in allTriggers)
         {
             if (triggerCounts.TryGetValue(trigger, out var count))
-                triggerCounts[trigger] = count + 1;
-            else
-                triggerCounts[trigger] = 1;
-        }
-
-        // Only flag single-use triggers when at least one other trigger appears more than once
-        // (a typo tends to appear once while the "real" trigger appears multiple times)
-        var anyMultiUse = false;
-        foreach (var kv in triggerCounts)
-        {
-            if (kv.Value > 1)
             {
-                anyMultiUse = true;
-                break;
+                triggerCounts[trigger] = count + 1;
+            }
+            else
+            {
+                triggerCounts[trigger] = 1;
+                distinctTriggers.Add(trigger);
             }
         }
 
-        if (anyMultiUse)
+        // Distinct triggers are walked in first-use order so the diagnostics are deterministic.
+        for (var c = 0; c < distinctTriggers.Count; c++)
         {
-            foreach (var kv in triggerCounts)
+            var candidate = distinctTriggers[c];
+            if (triggerCounts[candidate] != 1) continue;
+
+            string? intended = null;
+            var bestDistance = int.MaxValue;
+            for (var r = 0; r < distinctTriggers.Count; r++)
             {
-                if (kv.Value == 1)
+                var reused = distinctTriggers[r];
+                if (triggerCounts[reused] < 2) continue;
+
+                var maxDistance = MaxTypoDistance(candidate, reused);
+                var distance = TriggerNameDistance(candidate, reused, maxDistance);
+                // Strictly closer only: on a tie the reused trigger that appears first wins.
+                if (distance <= maxDistance && distance < bestDistance)
                 {
-                    diagnostics.Add(Diagnostic.Create(
-                        StateMachineDiagnostics.SingleUseTrigger, location,
-                        kv.Key, type.Name));
+                    intended = reused;
+                    bestDistance = distance;
                 }
             }
+
+            if (intended is not null)
+            {
+                diagnostics.Add(Diagnostic.Create(
+                    StateMachineDiagnostics.SingleUseTrigger, location,
+                    candidate, type.Name, intended));
+            }
         }
+    }
+
+    // Names of five or more characters tolerate two edits; shorter names only one, so that
+    // unrelated short names such as Tap and Trip are not mistaken for typos of each other.
+    private static int MaxTypoDistance(string a, string b)
+        => Math.Min(a.Length, b.Length) >= 5 ? 2 : 1;
+
+    /// <summary>
+    /// Case-insensitive Damerau-Levenshtein distance, optimal string alignment variant:
+    /// insertions, deletions, substitutions and transpositions of adjacent characters each
+    /// cost one edit. Returns <paramref name="maxDistance"/> + 1 without computing the table
+    /// when the length difference alone already exceeds it.
+    /// </summary>
+    private static int TriggerNameDistance(string a, string b, int maxDistance)
+    {
+        if (Math.Abs(a.Length - b.Length) > maxDistance) return maxDistance + 1;
+
+        // Three rolling rows: two rows back is needed for the transposition case.
+        var previousPrevious = new int[b.Length + 1];
+        var previous = new int[b.Length + 1];
+        var current = new int[b.Length + 1];
+        for (var j = 0; j <= b.Length; j++) previous[j] = j;
+
+        for (var i = 1; i <= a.Length; i++)
+        {
+            current[0] = i;
+            var ai = char.ToUpperInvariant(a[i - 1]);
+            for (var j = 1; j <= b.Length; j++)
+            {
+                var bj = char.ToUpperInvariant(b[j - 1]);
+                var cost = ai == bj ? 0 : 1;
+                var value = Math.Min(
+                    Math.Min(previous[j] + 1, current[j - 1] + 1),
+                    previous[j - 1] + cost);
+                if (i > 1 && j > 1 &&
+                    ai == char.ToUpperInvariant(b[j - 2]) &&
+                    char.ToUpperInvariant(a[i - 2]) == bj)
+                {
+                    value = Math.Min(value, previousPrevious[j - 2] + 1);
+                }
+
+                current[j] = value;
+            }
+
+            var recycled = previousPrevious;
+            previousPrevious = previous;
+            previous = current;
+            current = recycled;
+        }
+
+        return previous[b.Length];
     }
 
     private static void AnalyzeCompositeStates(

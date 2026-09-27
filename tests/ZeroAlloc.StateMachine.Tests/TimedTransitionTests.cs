@@ -1,24 +1,8 @@
-#pragma warning disable MA0048  // file name must match type name -- multiple types in one test file
-
 namespace ZeroAlloc.StateMachine.Tests;
 
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using ZeroAlloc.StateMachine;
-
-public enum WdState { Idle, Working, Dead }
-public enum WdTrigger { Start, Heartbeat, Timeout }
-
-[StateMachine(InitialState = nameof(WdState.Idle), Concurrent = true)]
-[Terminal<WdState>(State = WdState.Dead)]
-[Transition<WdState, WdTrigger>(From = WdState.Idle,    On = WdTrigger.Start,    To = WdState.Working)]
-[Transition<WdState, WdTrigger>(From = WdState.Working, On = WdTrigger.Heartbeat, To = WdState.Working)]
-// AfterMs is set generously (500ms) so the negative-case test
-// (User_fire_before_timer_disarms_cleanly) has a wide stability margin
-// against ThreadPool / Task.Delay scheduling jitter on busy CI hosts.
-[Transition<WdState, WdTrigger>(From = WdState.Working, On = WdTrigger.Timeout,   To = WdState.Dead, AfterMs = 500)]
-public partial class Watchdog { }
 
 public class TimedTransitionTests
 {
