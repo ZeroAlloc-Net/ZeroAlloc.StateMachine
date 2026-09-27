@@ -33,7 +33,7 @@ public sealed class StateMachineAttribute : Attribute
     /// on the partial containing a Mermaid <c>stateDiagram-v2</c> rendering of the
     /// machine's transitions. Composite sub-FSMs render as nested <c>state X { ... }</c>
     /// blocks; timed edges annotate with <c>(after Nms)</c>; guards annotate with
-    /// <c>[guard]</c>; terminal states render as <c>X --> [*]</c>.
+    /// <c>[guard]</c>, except in concurrent mode, which generates no guards; terminal states render as <c>X --> [*]</c>.
     /// Default: <c>false</c>.
     /// </summary>
     public bool Diagram { get; init; } = false;

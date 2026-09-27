@@ -76,4 +76,68 @@ public partial class Device { }
 ";
         TestHelper.Verify<StateMachineGenerator>(source);
     }
+    [Fact]
+    public void ConcurrentMachine_GuardedEdge_IsNotLabelledGuard()
+    {
+        // Concurrent machines generate no guard, so the edge fires unconditionally
+        // and the diagram must not claim otherwise.
+        const string source = @"
+using ZeroAlloc.StateMachine;
+namespace MyApp;
+
+public enum S { Idle, Paid }
+public enum T { Pay }
+
+[StateMachine(InitialState = ""Idle"", Concurrent = true, Diagram = true)]
+[Transition<S, T>(From = S.Idle, On = T.Pay, To = S.Paid, When = true)]
+[Terminal<S>(State = S.Paid)]
+public partial class Order { }
+";
+        var generated = TestHelper.GetGeneratedSource<StateMachineGenerator>(source);
+
+        Assert.Contains("Idle --> Paid: Pay", generated, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("[guard]", generated, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void GroupPart_GuardedEdge_IsNotLabelledGuard()
+    {
+        // Parts are always concurrent, so a guard on a part's edge is never evaluated.
+        const string source = @"
+using ZeroAlloc.StateMachine;
+namespace MyApp;
+
+public enum S { Idle, Running }
+public enum T { Start }
+
+[StateMachineGroup(Diagram = true)]
+[StateMachinePart<S, T>(Name = ""Op"", InitialState = S.Idle)]
+[Transition<S, T>(From = S.Idle, On = T.Start, To = S.Running, Part = ""Op"", When = true)]
+public partial class Device { }
+";
+        var generated = TestHelper.GetGeneratedSource<StateMachineGenerator>(source);
+
+        Assert.Contains("Idle --> Running: Start", generated, System.StringComparison.Ordinal);
+        Assert.DoesNotContain("[guard]", generated, System.StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SequentialMachine_GuardedEdge_IsLabelledGuard()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+namespace MyApp;
+
+public enum S { Idle, Paid }
+public enum T { Pay }
+
+[StateMachine(InitialState = ""Idle"", Diagram = true)]
+[Transition<S, T>(From = S.Idle, On = T.Pay, To = S.Paid, When = true)]
+[Terminal<S>(State = S.Paid)]
+public partial class Order { }
+";
+        var generated = TestHelper.GetGeneratedSource<StateMachineGenerator>(source);
+
+        Assert.Contains("Idle --> Paid: Pay [guard]", generated, System.StringComparison.Ordinal);
+    }
 }

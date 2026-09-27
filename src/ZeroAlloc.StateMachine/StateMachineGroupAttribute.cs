@@ -19,8 +19,9 @@ public sealed class StateMachineGroupAttribute : Attribute
     /// <summary>
     /// When <c>true</c>, the generator emits a <c>public const string MermaidDiagram</c>
     /// on the group partial. Each <see cref="StateMachinePartAttribute{TState, TTrigger}"/>
-    /// renders as a top-level <c>state {Name} { ... }</c> block; transitions, terminals,
-    /// timed edges, and guards render per the standard Mermaid rules.
+    /// renders as a top-level <c>state {Name} { ... }</c> block; transitions, terminals
+    /// and timed edges render per the standard Mermaid rules. Guarded edges carry no
+    /// <c>[guard]</c> label, because parts are concurrent and generate no guards.
     /// Default: <c>false</c>.
     /// </summary>
     public bool Diagram { get; init; } = false;

@@ -42,6 +42,32 @@ internal static class TestHelper
         GeneratorSnapshot.Verify(driver);
     }
 
+    public static string GetGeneratedSource<TGenerator>(string source)
+        where TGenerator : IIncrementalGenerator, new()
+    {
+        var syntaxTree = CSharpSyntaxTree.ParseText(source, ParseOptions);
+        var references = AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .Select(a => MetadataReference.CreateFromFile(a.Location))
+            .Cast<MetadataReference>()
+            .Append(MetadataReference.CreateFromFile(
+                typeof(StateMachineAttribute).Assembly.Location))
+            .ToList();
+
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "Tests",
+            syntaxTrees: new[] { syntaxTree },
+            references: references,
+            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
+
+        var result = CSharpGeneratorDriver.Create(new TGenerator())
+            .WithUpdatedParseOptions(ParseOptions)
+            .RunGenerators(compilation)
+            .GetRunResult();
+
+        return string.Concat(result.GeneratedTrees.Select(static t => t.GetText().ToString()));
+    }
+
     public static Task<IReadOnlyList<Diagnostic>> GetDiagnostics<TGenerator>(string source)
         where TGenerator : IIncrementalGenerator, new()
     {
