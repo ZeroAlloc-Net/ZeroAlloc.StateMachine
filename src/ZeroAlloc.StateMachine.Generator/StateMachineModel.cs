@@ -19,6 +19,7 @@ internal sealed record StateMachineModel(
     ImmutableArray<CompositeStateModel> CompositeStates,
     ImmutableArray<HistoryStateModel> HistoryStates,
     bool HasUserCtor,
+    bool HasUserParameterlessCtor,
     bool Diagram,
     ImmutableArray<Diagnostic> Diagnostics
 );

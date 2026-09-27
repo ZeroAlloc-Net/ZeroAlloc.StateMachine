@@ -69,9 +69,14 @@ internal static class StateMachineWriter
         // Sub-FSM + history fields (only if composites exist)
         WriteCompositeFields(sb, m);
 
-        // Current property
+        WriteStructParameterlessCtor(sb, m);
+
+        // Current property. On a struct it is readonly, so reading it through a readonly field or
+        // an `in` parameter needs no defensive copy. The other members stay non-readonly: they
+        // write state or call user-implemented partial hooks and guards.
+        var readonlyModifier = m.IsStruct ? "readonly " : "";
         sb.AppendLine($"    /// <summary>Current state of the machine.</summary>");
-        sb.AppendLine($"    public {st} Current => _state;");
+        sb.AppendLine($"    public {readonlyModifier}{st} Current => _state;");
         sb.AppendLine();
 
         // TryFireSubMachine dispatcher (only if composites exist)
@@ -98,14 +103,31 @@ internal static class StateMachineWriter
         WritePartialStubs(sb, m);
     }
 
+    private static void WriteStructParameterlessCtor(StringBuilder sb, StateMachineModel m)
+    {
+        // A struct with field initializers must declare a constructor (CS8983), and only an
+        // explicit parameterless one makes `new T()` run the initializers that set the initial
+        // state. Emit it unless the user already declared one.
+        if (!m.IsStruct || m.HasUserParameterlessCtor) return;
+
+        sb.AppendLine($"    /// <summary>Creates the machine in its declared initial state.</summary>");
+        sb.AppendLine($"    public {m.ClassName}()");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+    }
+
     private static void WriteCompositeFields(StringBuilder sb, StateMachineModel m)
     {
         if (m.CompositeStates.IsEmpty) return;
 
-        // Sub-FSM instances (one per [CompositeState]).
+        // Sub-FSM instances (one per [CompositeState]). A struct sub-machine field must not be
+        // readonly: TryFire, Reset and ResetTo mutate it, and on a readonly field each call would
+        // run on a defensive copy, losing the sub-machine's state change.
         foreach (var c in m.CompositeStates)
         {
-            sb.AppendLine($"    private readonly {c.SubMachineFqn} _subFsm_{c.State} = new();");
+            var modifier = c.SubMachineIsStruct ? "private" : "private readonly";
+            sb.AppendLine($"    {modifier} {c.SubMachineFqn} _subFsm_{c.State} = new();");
         }
 
         // History fields (one pair per [HistoryState] that matches a [CompositeState]).

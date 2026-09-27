@@ -70,4 +70,52 @@ public class GeneratorSnapshotTests
 
         TestHelper.Verify<StateMachineGenerator>(source);
     }
+
+    [Fact]
+    public void StructMachine_GeneratesExpectedCode()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+
+            namespace MyApp;
+
+            public enum State   { Off, On }
+            public enum Trigger { Flip }
+
+            [StateMachine(InitialState = nameof(State.Off))]
+            [Transition<State, Trigger>(From = State.Off, On = Trigger.Flip, To = State.On)]
+            [Transition<State, Trigger>(From = State.On,  On = Trigger.Flip, To = State.Off)]
+            public partial struct LightSwitch { }
+            """;
+
+        TestHelper.Verify<StateMachineGenerator>(source);
+    }
+
+    [Fact]
+    public void StructMachine_WithStructComposite_GeneratesExpectedCode()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+
+            namespace MyApp;
+
+            public enum ParentState  { Idle, Loading }
+            public enum LoadingState { Fetching, Parsing }
+            public enum Trigger      { Start, DataReceived, Suspend }
+
+            [StateMachine(InitialState = nameof(LoadingState.Fetching))]
+            [Transition<LoadingState, Trigger>(From = LoadingState.Fetching, On = Trigger.DataReceived, To = LoadingState.Parsing)]
+            [Terminal<LoadingState>(State = LoadingState.Parsing)]
+            public partial struct LoadingFsm { }
+
+            [StateMachine(InitialState = nameof(ParentState.Idle))]
+            [Transition<ParentState, Trigger>(From = ParentState.Idle,    On = Trigger.Start,   To = ParentState.Loading)]
+            [Transition<ParentState, Trigger>(From = ParentState.Loading, On = Trigger.Suspend, To = ParentState.Idle)]
+            [CompositeState<ParentState>(State = ParentState.Loading, SubMachine = typeof(LoadingFsm))]
+            [HistoryState<ParentState>(State = ParentState.Loading)]
+            public partial struct ParentMachine { }
+            """;
+
+        TestHelper.Verify<StateMachineGenerator>(source);
+    }
 }

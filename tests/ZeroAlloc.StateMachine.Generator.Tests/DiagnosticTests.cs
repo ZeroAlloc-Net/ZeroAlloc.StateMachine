@@ -121,6 +121,31 @@ public class DiagnosticTests
         diagnostics.Should().Contain(d => d.Id == "ZSM0004" && d.Severity == DiagnosticSeverity.Error);
     }
 
+    [Theory]
+    [InlineData("")]
+    [InlineData("public TestMachine() { }")]
+    [InlineData("public TestMachine(int seed) { _ = seed; }")]
+    public async Task StructMachine_Compiles_WithAnyUserConstructorShape(string userCtor)
+    {
+        var source = $$"""
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum S { A, B }
+            public enum R { Go }
+
+            [StateMachine(InitialState = nameof(S.A))]
+            [Transition<S, R>(From = S.A, On = R.Go, To = S.B)]
+            [Terminal<S>(State = S.B)]
+            public partial struct TestMachine
+            {
+                {{userCtor}}
+            }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().NotContain(d => d.Severity == DiagnosticSeverity.Error);
+    }
+
     [Fact]
     public async Task ZSM0005_CompositeOnConcurrent_EmitsError()
     {
