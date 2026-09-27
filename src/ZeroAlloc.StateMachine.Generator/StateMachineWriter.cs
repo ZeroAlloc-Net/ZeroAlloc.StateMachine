@@ -118,10 +118,13 @@ internal static class StateMachineWriter
     {
         if (m.CompositeStates.IsEmpty) return;
 
-        // Sub-FSM instances (one per [CompositeState]).
+        // Sub-FSM instances (one per [CompositeState]). A struct sub-machine field must not be
+        // readonly: TryFire, Reset and ResetTo mutate it, and on a readonly field each call would
+        // run on a defensive copy, losing the sub-machine's state change.
         foreach (var c in m.CompositeStates)
         {
-            sb.AppendLine($"    private readonly {c.SubMachineFqn} _subFsm_{c.State} = new();");
+            var modifier = c.SubMachineIsStruct ? "private" : "private readonly";
+            sb.AppendLine($"    {modifier} {c.SubMachineFqn} _subFsm_{c.State} = new();");
         }
 
         // History fields (one pair per [HistoryState] that matches a [CompositeState]).

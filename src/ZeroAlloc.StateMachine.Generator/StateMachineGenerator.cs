@@ -531,7 +531,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             State: stateName,
             SubMachineFqn: subMachineSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             SubMachineShort: subMachineSymbol.Name,
-            SubMachineStateTypeFqn: subStateTypeFqn));
+            SubMachineStateTypeFqn: subStateTypeFqn,
+            SubMachineIsStruct: subMachineSymbol.TypeKind == TypeKind.Struct));
     }
 
     private static string? GetEnumMemberName(AttributeData attr, string namedArgKey, ITypeSymbol enumType)

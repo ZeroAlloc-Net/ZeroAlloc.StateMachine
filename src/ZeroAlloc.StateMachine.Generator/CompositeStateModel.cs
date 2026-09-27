@@ -5,8 +5,10 @@ namespace ZeroAlloc.StateMachine.Generator;
 /// <param name="SubMachineFqn">Fully-qualified type name of the sub-machine (e.g. "global::MyApp.LoadingFsm").</param>
 /// <param name="SubMachineShort">Short type name (e.g. "LoadingFsm").</param>
 /// <param name="SubMachineStateTypeFqn">Fully-qualified TState of the sub-machine (e.g. "global::MyApp.LoadingState").</param>
+/// <param name="SubMachineIsStruct">True when the sub-machine is a <c>partial struct</c>.</param>
 internal sealed record CompositeStateModel(
     string State,
     string SubMachineFqn,
     string SubMachineShort,
-    string SubMachineStateTypeFqn);
+    string SubMachineStateTypeFqn,
+    bool SubMachineIsStruct);

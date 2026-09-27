@@ -8,7 +8,7 @@ partial struct ParentMachine
 {
     private global::MyApp.ParentState _state = global::MyApp.ParentState.Idle;
 
-    private readonly global::MyApp.LoadingFsm _subFsm_Loading = new();
+    private global::MyApp.LoadingFsm _subFsm_Loading = new();
     private global::MyApp.LoadingState _history_Loading;
     private bool _hasHistory_Loading;
 
