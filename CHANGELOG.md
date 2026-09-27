@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.4...v1.6.0) (2026-09-27)
+
+
+### Features
+
+* warn with ZSM0022 when When = true is ignored on a concurrent machine ([#148](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/148)) ([671843d](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/671843d6023bc228101cbcc4003d3b6a94902616))
+
+
+### Bug Fixes
+
+* drop the [guard] label from concurrent edges in the Mermaid diagram ([#150](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/150)) ([a2ea903](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/a2ea9031e3fe286ea2a4facd1b4d52009d8e5283)), closes [#149](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/149)
+* flag a single-use trigger as ZSM0003 only when its name is close to a reused trigger ([#147](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/147)) ([7896c58](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/7896c58638474fb212f6ad0078238be717ed9e4e))
+* keep the state change of a struct sub-machine in a composite state ([62943ee](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/62943ee428b7290bd6865a46c0c9e9dd54c27933))
+* struct state machines without a user constructor now compile ([62943ee](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/62943ee428b7290bd6865a46c0c9e9dd54c27933))
+
+
+### Performance
+
+* mark Current readonly on generated struct state machines ([62943ee](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/62943ee428b7290bd6865a46c0c9e9dd54c27933))
+
 ## [1.5.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.3...v1.5.4) (2026-09-20)
 
 
