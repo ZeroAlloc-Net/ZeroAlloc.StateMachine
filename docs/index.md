@@ -87,3 +87,4 @@ machine.Current;                 // Pending
 | [ZSM0019](diagnostics/ZSM0019.md) | Error | Incompatible user-supplied `Dispose` |
 | [ZSM0020](diagnostics/ZSM0020.md) | Warning | `Diagram = true` on a class with no transitions |
 | [ZSM0021](diagnostics/ZSM0021.md) | Error | User constructor must call `HookConstructor()` |
+| [ZSM0022](diagnostics/ZSM0022.md) | Warning | `When = true` is ignored on a concurrent machine |

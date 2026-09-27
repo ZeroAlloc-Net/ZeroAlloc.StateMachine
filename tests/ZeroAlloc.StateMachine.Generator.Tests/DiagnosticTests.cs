@@ -665,4 +665,121 @@ public partial class M
         var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
         Assert.DoesNotContain(diags, d => string.Equals(d.Id, "ZSM0021", StringComparison.Ordinal));
     }
+    [Fact]
+    public async Task ZSM0022_FiresWhen_Guard_OnConcurrentMachine()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, When = true)]
+[Terminal<S>(State = S.B)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        var zsm0022 = diags.Should().ContainSingle(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).Which;
+        Assert.Equal(DiagnosticSeverity.Warning, zsm0022.Severity);
+        Assert.False(zsm0022.IsSuppressed);
+        Assert.True(zsm0022.Location.IsInSource);
+        Assert.Equal("When = true", zsm0022.Location.SourceTree!.GetText().ToString(zsm0022.Location.SourceSpan));
+        Assert.Equal(
+            "[Transition(From = S.A, On = T.Go, To = S.B, When = true)] on 'M': When = true is ignored on a concurrent machine, "
+            + "so this transition fires unconditionally. A guard cannot be evaluated atomically with the compare-and-swap "
+            + "that commits the transition (TOCTOU race). Encode the condition as a state, or check it before calling TryFire.",
+            zsm0022.GetMessage(CultureInfo.InvariantCulture));
+        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error);
+    }
+
+    [Fact]
+    public async Task ZSM0022_FiresOncePerGuardedTransition()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B, C } public enum T { Go, Skip, Back }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go,   To = S.B, When = true)]
+[Transition<S, T>(From = S.A, On = T.Skip, To = S.C, When = true)]
+[Transition<S, T>(From = S.B, On = T.Back, To = S.A)]
+[Terminal<S>(State = S.C)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        var zsm0022 = diags.Where(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).ToList();
+        Assert.Equal(2, zsm0022.Count);
+        Assert.Contains(zsm0022, d => d.GetMessage(CultureInfo.InvariantCulture).Contains("On = T.Go,", StringComparison.Ordinal));
+        Assert.Contains(zsm0022, d => d.GetMessage(CultureInfo.InvariantCulture).Contains("On = T.Skip,", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0022_FiresWhen_Guard_InStateMachinePart()
+    {
+        // Parts of a [StateMachineGroup] are always concurrent, so their guards are dropped too.
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, Part = ""P"", When = true)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        var zsm0022 = diags.Should().ContainSingle(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).Which;
+        Assert.Equal(DiagnosticSeverity.Warning, zsm0022.Severity);
+        Assert.Equal("When = true", zsm0022.Location.SourceTree!.GetText().ToString(zsm0022.Location.SourceSpan));
+    }
+
+    [Fact]
+    public async Task ZSM0022_DoesNotFire_When_Guard_OnSequentialMachine()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"")]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, When = true)]
+[Terminal<S>(State = S.B)]
+public partial class M
+{
+    private partial bool GuardGo(S from, T on) => true;
+}
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.DoesNotContain(diags, d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal));
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(", When = false")]
+    public async Task ZSM0022_DoesNotFire_When_NoGuard_OnConcurrentMachine(string when)
+    {
+        var source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B" + when + @")]
+[Terminal<S>(State = S.B)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        Assert.DoesNotContain(diags, d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ZSM0022_IsSuppressedBy_PragmaWarningDisable()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+#pragma warning disable ZSM0022
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, When = true)]
+#pragma warning restore ZSM0022
+[Terminal<S>(State = S.B)]
+public partial class M { }
+";
+        var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        // The generator driver applies #pragma to generator diagnostics by marking them
+        // suppressed, which the compiler then leaves out of the build output.
+        var zsm0022 = diags.Should().ContainSingle(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).Which;
+        Assert.True(zsm0022.IsSuppressed);
+    }
 }

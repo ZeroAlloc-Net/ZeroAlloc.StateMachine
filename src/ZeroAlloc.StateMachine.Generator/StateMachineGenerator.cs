@@ -220,6 +220,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
         }
 
+        // Every [StateMachinePart] is concurrent, so a guard on any part's transition is dropped.
+        AnalyzeGuardsOnConcurrentMachine(type, concurrent: true, diagnostics);
+
         var hasTimedInGroup = parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
         AnalyzeMissingHookConstructorInvocation(type, hasTimedInGroup, diagnostics);
     }
@@ -612,9 +615,55 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
         AnalyzeDisposeConflict(type, transitions, diagnostics);
         AnalyzeEmptyDiagramRequest(diagram, transitions, type, diagnostics);
+        AnalyzeGuardsOnConcurrentMachine(type, concurrent, diagnostics);
 
         var hasTimed = transitions.Any(static t => t.AfterMs > 0);
         AnalyzeMissingHookConstructorInvocation(type, hasTimed, diagnostics);
+    }
+
+    // ZSM0022: When = true on a concurrent machine. The writer emits no guard for it, so the
+    // transition fires unconditionally; report it at the When argument so the user sees which
+    // edge lost its guard and can suppress it per transition.
+    private static void AnalyzeGuardsOnConcurrentMachine(
+        INamedTypeSymbol type,
+        bool concurrent,
+        ImmutableArray<Diagnostic>.Builder diagnostics)
+    {
+        if (!concurrent) return;
+
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var hasGuard = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "When", StringComparison.Ordinal)).Value.Value is true;
+            if (!hasGuard) continue;
+
+            var from = GetEnumMemberName(attr, "From", ac.TypeArguments[0]);
+            var on   = GetEnumMemberName(attr, "On",   ac.TypeArguments[1]);
+            var to   = GetEnumMemberName(attr, "To",   ac.TypeArguments[0]);
+            if (from is null || on is null || to is null) continue;
+
+            diagnostics.Add(Diagnostic.Create(
+                StateMachineDiagnostics.GuardIgnoredOnConcurrentMachine,
+                GetNamedArgumentLocation(attr, "When", type),
+                ac.TypeArguments[0].Name, from, ac.TypeArguments[1].Name, on, to, type.Name));
+        }
+    }
+
+    private static Location GetNamedArgumentLocation(AttributeData attr, string name, INamedTypeSymbol type)
+    {
+        if (attr.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax syntax)
+        {
+            var argument = syntax.ArgumentList?.Arguments.FirstOrDefault(a =>
+                string.Equals(a.NameEquals?.Name.Identifier.ValueText, name, StringComparison.Ordinal));
+            return (argument ?? (SyntaxNode)syntax).GetLocation();
+        }
+
+        return type.Locations.Length > 0 ? type.Locations[0] : Location.None;
     }
 
     private static void AnalyzeEmptyDiagramRequest(
