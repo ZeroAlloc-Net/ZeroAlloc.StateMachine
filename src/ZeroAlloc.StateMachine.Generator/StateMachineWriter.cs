@@ -71,9 +71,12 @@ internal static class StateMachineWriter
 
         WriteStructParameterlessCtor(sb, m);
 
-        // Current property
+        // Current property. On a struct it is readonly, so reading it through a readonly field or
+        // an `in` parameter needs no defensive copy. The other members stay non-readonly: they
+        // write state or call user-implemented partial hooks and guards.
+        var readonlyModifier = m.IsStruct ? "readonly " : "";
         sb.AppendLine($"    /// <summary>Current state of the machine.</summary>");
-        sb.AppendLine($"    public {st} Current => _state;");
+        sb.AppendLine($"    public {readonlyModifier}{st} Current => _state;");
         sb.AppendLine();
 
         // TryFireSubMachine dispatcher (only if composites exist)

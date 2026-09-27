@@ -1,3 +1,6 @@
+using System.Reflection;
+using System.Runtime.CompilerServices;
+
 namespace ZeroAlloc.StateMachine.Tests;
 
 public class StructMachineTests
@@ -47,5 +50,14 @@ public class StructMachineTests
         Assert.True(m.TryFire(StructTrigger.Suspend));
         Assert.True(m.TryFire(StructTrigger.Start));           // history restores Parsing
         Assert.False(m.TryFire(StructTrigger.DataReceived));
+    }
+
+    [Fact]
+    public void Struct_machine_Current_is_a_readonly_member()
+    {
+        // A readonly getter lets a machine held in a readonly field or passed by `in` read
+        // Current without a defensive copy.
+        var getter = typeof(StructLightSwitch).GetProperty(nameof(StructLightSwitch.Current))!.GetMethod!;
+        Assert.NotNull(getter.GetCustomAttribute<IsReadOnlyAttribute>());
     }
 }

@@ -14,7 +14,7 @@ partial struct LightSwitch
     }
 
     /// <summary>Current state of the machine.</summary>
-    public global::MyApp.State Current => _state;
+    public readonly global::MyApp.State Current => _state;
 
     /// <summary>
     /// Attempt to fire <paramref name="trigger"/> from the current state.

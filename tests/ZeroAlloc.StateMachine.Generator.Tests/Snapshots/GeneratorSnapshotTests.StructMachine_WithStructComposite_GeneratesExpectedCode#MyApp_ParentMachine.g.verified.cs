@@ -18,7 +18,7 @@ partial struct ParentMachine
     }
 
     /// <summary>Current state of the machine.</summary>
-    public global::MyApp.ParentState Current => _state;
+    public readonly global::MyApp.ParentState Current => _state;
 
     private bool TryFireSubMachine(global::MyApp.Trigger trigger) => _state switch
     {

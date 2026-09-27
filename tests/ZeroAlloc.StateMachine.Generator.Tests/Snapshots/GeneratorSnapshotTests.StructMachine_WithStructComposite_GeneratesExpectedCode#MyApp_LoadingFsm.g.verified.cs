@@ -14,7 +14,7 @@ partial struct LoadingFsm
     }
 
     /// <summary>Current state of the machine.</summary>
-    public global::MyApp.LoadingState Current => _state;
+    public readonly global::MyApp.LoadingState Current => _state;
 
     /// <summary>
     /// Attempt to fire <paramref name="trigger"/> from the current state.
