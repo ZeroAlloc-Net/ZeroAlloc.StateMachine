@@ -45,7 +45,9 @@ internal static class MermaidDiagramWriter
             sb.Append(t.From).Append(" --> ").Append(t.To).Append(": ").Append(t.On);
             if (t.AfterMs > 0)
                 sb.Append(" (after ").Append(t.AfterMs).Append("ms)");
-            if (t.HasGuard)
+            // Concurrent machines generate no guard (TOCTOU), so the edge fires
+            // unconditionally; labelling it [guard] would misstate the runtime behaviour.
+            if (t.HasGuard && !m.Concurrent)
                 sb.Append(" [guard]");
             sb.AppendLine();
         }
@@ -86,8 +88,7 @@ internal static class MermaidDiagramWriter
             sb.Append(t.From).Append(" --> ").Append(t.To).Append(": ").Append(t.On);
             if (t.AfterMs > 0)
                 sb.Append(" (after ").Append(t.AfterMs).Append("ms)");
-            if (t.HasGuard)
-                sb.Append(" [guard]");
+            // No [guard] label: parts are always concurrent and generate no guard.
             sb.AppendLine();
         }
 

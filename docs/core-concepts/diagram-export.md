@@ -65,7 +65,7 @@ stateDiagram-v2
 |---|---|
 | **Initial state** | `[*] --> InitialState` |
 | **Flat transitions** | `From --> To: Trigger` |
-| **Guards** (`When = true`) | `From --> To: Trigger [guard]` |
+| **Guards** (`When = true`) | `From --> To: Trigger [guard]`. Not on a `Concurrent = true` machine or a `[StateMachinePart]`, where no guard is generated and the edge fires unconditionally |
 | **Timed edges** (`AfterMs = N`) | `From --> To: Trigger (after Nms)` |
 | **Terminal states** (`[Terminal]`) | `State --> [*]` |
 | **Composite states** | `state Parent { ... }` nested block, with the sub-FSM's own diagram inside |
