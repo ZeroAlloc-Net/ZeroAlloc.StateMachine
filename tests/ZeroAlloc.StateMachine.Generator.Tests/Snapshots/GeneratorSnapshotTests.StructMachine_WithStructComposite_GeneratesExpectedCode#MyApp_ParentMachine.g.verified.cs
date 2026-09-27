@@ -12,6 +12,11 @@ partial struct ParentMachine
     private global::MyApp.LoadingState _history_Loading;
     private bool _hasHistory_Loading;
 
+    /// <summary>Creates the machine in its declared initial state.</summary>
+    public ParentMachine()
+    {
+    }
+
     /// <summary>Current state of the machine.</summary>
     public global::MyApp.ParentState Current => _state;
 

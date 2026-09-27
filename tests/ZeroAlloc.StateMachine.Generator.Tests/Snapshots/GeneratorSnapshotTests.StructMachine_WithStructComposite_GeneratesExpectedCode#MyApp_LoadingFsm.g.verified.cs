@@ -8,6 +8,11 @@ partial struct LoadingFsm
 {
     private global::MyApp.LoadingState _state = global::MyApp.LoadingState.Fetching;
 
+    /// <summary>Creates the machine in its declared initial state.</summary>
+    public LoadingFsm()
+    {
+    }
+
     /// <summary>Current state of the machine.</summary>
     public global::MyApp.LoadingState Current => _state;
 

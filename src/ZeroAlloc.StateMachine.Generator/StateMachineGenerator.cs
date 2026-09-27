@@ -345,6 +345,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var isStruct = type.TypeKind == TypeKind.Struct;
         var hasUserCtor = type.InstanceConstructors
             .Any(c => !c.IsImplicitlyDeclared);
+        var hasUserParameterlessCtor = type.InstanceConstructors
+            .Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty);
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
@@ -354,6 +356,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             transitions, terminalStates,
             compositeStates, historyStates,
             HasUserCtor: hasUserCtor,
+            HasUserParameterlessCtor: hasUserParameterlessCtor,
             Diagram: diagram,
             Diagnostics: ImmutableArray<Diagnostic>.Empty);
     }
@@ -389,6 +392,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var isStruct = type.TypeKind == TypeKind.Struct;
         var hasUserCtor = type.InstanceConstructors
             .Any(c => !c.IsImplicitlyDeclared);
+        var hasUserParameterlessCtor = type.InstanceConstructors
+            .Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty);
         var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
 
         ct.ThrowIfCancellationRequested();
@@ -409,6 +414,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             transitions, terminalStates,
             compositeStates, historyStates,
             HasUserCtor: hasUserCtor,
+            HasUserParameterlessCtor: hasUserParameterlessCtor,
             Diagram: diagram,
             diagnostics.ToImmutable());
     }

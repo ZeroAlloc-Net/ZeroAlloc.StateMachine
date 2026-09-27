@@ -8,6 +8,11 @@ partial struct LightSwitch
 {
     private global::MyApp.State _state = global::MyApp.State.Off;
 
+    /// <summary>Creates the machine in its declared initial state.</summary>
+    public LightSwitch()
+    {
+    }
+
     /// <summary>Current state of the machine.</summary>
     public global::MyApp.State Current => _state;
 
