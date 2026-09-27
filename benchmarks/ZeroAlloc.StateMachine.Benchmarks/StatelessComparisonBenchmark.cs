@@ -1,9 +1,5 @@
 using BenchmarkDotNet.Attributes;
 using Stateless;
-using ZeroAlloc.StateMachine;
-
-#pragma warning disable ZSM0002 // terminal states without [Terminal] — intentional in benchmarks
-#pragma warning disable ZSM0003 // single-use triggers — intentional in benchmarks
 
 namespace ZeroAlloc.StateMachine.Benchmarks;
 

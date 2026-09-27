@@ -1,43 +1,6 @@
 using BenchmarkDotNet.Attributes;
-using ZeroAlloc.StateMachine;
-
-#pragma warning disable ZSM0002 // terminal states without [Terminal] — intentional in benchmarks
-#pragma warning disable ZSM0003 // single-use triggers — intentional in benchmarks
 
 namespace ZeroAlloc.StateMachine.Benchmarks;
-
-// ── Benchmark machines ────────────────────────────────────────────────────────
-
-public enum OrderState   { Idle, Pending, Processing, Shipped }
-public enum OrderTrigger { Submit, Pay, Ship }
-
-[StateMachine(InitialState = nameof(OrderState.Idle))]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Idle,       On = OrderTrigger.Submit, To = OrderState.Pending)]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Pending,    On = OrderTrigger.Pay,    To = OrderState.Processing)]
-[Transition<OrderState, OrderTrigger>(From = OrderState.Processing, On = OrderTrigger.Ship,   To = OrderState.Shipped)]
-public partial class OrderMachine { }
-
-public enum GuardedState   { Idle, Active }
-public enum GuardedTrigger { Start }
-
-[StateMachine(InitialState = nameof(GuardedState.Idle))]
-[Transition<GuardedState, GuardedTrigger>(From = GuardedState.Idle, On = GuardedTrigger.Start, To = GuardedState.Active, When = true)]
-public partial class GuardedMachine
-{
-    private bool _allow;
-    public void SetAllow(bool v) => _allow = v;
-    private partial bool GuardStart(GuardedState from, GuardedTrigger on) => _allow;
-}
-
-public enum CbState   { Closed, Open, HalfOpen }
-public enum CbTrigger { Trip, Probe, Reset }
-
-[StateMachine(InitialState = nameof(CbState.Closed), Concurrent = true)]
-[Transition<CbState, CbTrigger>(From = CbState.Closed,   On = CbTrigger.Trip,  To = CbState.Open)]
-[Transition<CbState, CbTrigger>(From = CbState.Open,     On = CbTrigger.Probe, To = CbState.HalfOpen)]
-[Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Reset, To = CbState.Closed)]
-[Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
-public partial class CircuitBreakerFsm { }
 
 // ── Benchmarks ────────────────────────────────────────────────────────────────
 
