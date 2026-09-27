@@ -194,7 +194,7 @@ partial class WorkerMachine
 | State field type | `TState` | `long` |
 | `Current` read | direct field | `Volatile.Read` |
 | Transition | direct field write | CAS loop |
-| Guards | Supported | Not generated |
+| Guards | Supported | Not generated; `When = true` raises ZSM0022 |
 | Hook timing | before/after field write | after successful CAS |
 
 ---

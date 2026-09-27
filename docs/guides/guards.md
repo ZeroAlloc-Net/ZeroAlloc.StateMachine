@@ -94,7 +94,7 @@ When a guard blocks a transition, `TryFire` returns `false` — the same as when
 
 ## Guards in concurrent mode
 
-Guards are **silently ignored** when `Concurrent = true`. The generator does not emit guard stubs or `when` clauses in concurrent mode — the TOCTOU risk makes guards fundamentally unsafe in that context (the guard could pass, then another thread could change the relevant condition before the CAS fires). See [Concurrent Mode](../core-concepts/concurrent-mode.md#guards-and-concurrent-mode) for the reason and alternatives.
+Guards are **ignored** when `Concurrent = true`, and in every part of a `[StateMachineGroup]`. The generator does not emit guard stubs or `when` clauses in concurrent mode, so the transition fires unconditionally, and it reports warning [ZSM0022](../diagnostics/ZSM0022.md) at each `When = true` it ignores — the TOCTOU risk makes guards fundamentally unsafe in that context (the guard could pass, then another thread could change the relevant condition before the CAS fires). See [Concurrent Mode](../core-concepts/concurrent-mode.md#guards-and-concurrent-mode) for the reason and alternatives.
 
 ---
 

@@ -192,4 +192,12 @@ internal static class StateMachineDiagnostics
         defaultSeverity:    DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:        "When timed transitions are present and the user declares their own constructor, that constructor must call the generator-emitted partial void HookConstructor() to arm initial-state timers.");
+    public static readonly DiagnosticDescriptor GuardIgnoredOnConcurrentMachine = new(
+        id:                 "ZSM0022",
+        title:              "When = true is ignored on a concurrent machine",
+        messageFormat:      "[Transition(From = {0}.{1}, On = {2}.{3}, To = {0}.{4}, When = true)] on '{5}': When = true is ignored on a concurrent machine, so this transition fires unconditionally. A guard cannot be evaluated atomically with the compare-and-swap that commits the transition (TOCTOU race). Encode the condition as a state, or check it before calling TryFire.",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description:        "Concurrent machines, which includes every [StateMachinePart] of a [StateMachineGroup], commit transitions with a lock-free compare-and-swap. A guard checked before that swap can be invalidated by another thread before it lands, so the generator emits no guard stub and no when clause, and the transition always fires. Split the source state so that only the state in which the condition holds has the transition, check the condition before calling TryFire, or remove Concurrent = true and synchronise callers externally.");
 }

@@ -24,7 +24,7 @@ Marks a `partial` class or struct as a source-generated state machine. The gener
 | Property | Type | Required | Default | Description |
 |----------|------|----------|---------|-------------|
 | `InitialState` | `string` | yes | — | The name of the initial state. **Always use `nameof(...)`** to keep it refactor-safe. |
-| `Concurrent` | `bool` | no | `false` | When `true`, state is stored as `volatile long` and transitions use `Interlocked.CompareExchange`. Safe for concurrent callers. Guards are not generated in this mode. |
+| `Concurrent` | `bool` | no | `false` | When `true`, state is stored as `volatile long` and transitions use `Interlocked.CompareExchange`. Safe for concurrent callers. Guards are not generated in this mode; `When = true` raises warning **ZSM0022**. |
 | `Diagram` | `bool` | no | `false` | When `true`, the generator emits a `public const string MermaidDiagram` on the partial containing a Mermaid `stateDiagram-v2` rendering of the machine. See [Diagram Export](core-concepts/diagram-export.md). Emits **ZSM0020** on a class with no transitions. |
 
 ### Examples
@@ -69,7 +69,7 @@ Declares a single directed edge in the state graph. Stack multiple attributes to
 | `From` | `TState` | yes | — | Source state. The machine must be in this state for the trigger to fire. |
 | `On` | `TTrigger` | yes | — | The trigger value that activates this edge. |
 | `To` | `TState` | yes | — | Destination state after the transition fires. |
-| `When` | `bool` | no | `false` | When `true`, the generator emits a `private partial bool Guard{TriggerName}(TState from, TTrigger on)` stub and adds a `when` clause to the switch arm. The transition fires only if the guard returns `true`. Ignored when `Concurrent = true`. |
+| `When` | `bool` | no | `false` | When `true`, the generator emits a `private partial bool Guard{TriggerName}(TState from, TTrigger on)` stub and adds a `when` clause to the switch arm. The transition fires only if the guard returns `true`. Ignored when `Concurrent = true` or inside a `[StateMachinePart]`, where it raises warning **ZSM0022**. |
 | `AfterMs` {#transition-afterms} | `int` | no | `0` | When `> 0`, declares a **timeout transition**: the edge auto-fires after `AfterMs` milliseconds in the source state. Requires `Concurrent = true` on the enclosing `[StateMachine]` or that the edge lives inside a `[StateMachinePart]`. See [Timeout Transitions](core-concepts/timeout-transitions.md). |
 | `Part` {#transition-part} | `string?` | no | `null` | The `Name` of the `[StateMachinePart]` this transition belongs to. Required on transitions inside a `[StateMachineGroup]`; must be `null` (omitted) on transitions inside a single-machine `[StateMachine]` class. See [Concurrent Parts](core-concepts/concurrent-parts.md). |
 

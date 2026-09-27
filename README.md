@@ -63,7 +63,7 @@ Full methodology + self-benchmark: [docs/performance.md](https://github.com/Zero
 | Entry / exit hooks | `partial void OnEnter{State}` / `partial void OnExit{State}` — observe every crossing |
 | Terminal states | `[Terminal<TState>]` silences the "no outgoing transitions" diagnostic |
 | Struct support | `partial struct` machines eliminate even the instance heap allocation |
-| Diagnostics | ZSM0001–ZSM0004: unreachable state, sink state, concurrent + guard, concurrent + struct |
+| Diagnostics | Compile-time checks such as unreachable state, sink state, a likely trigger typo, and a guard ignored on a concurrent machine |
 
 ---
 
@@ -173,7 +173,7 @@ public partial class OrderMachine
 public partial class WorkerMachine { }
 ```
 
-State is stored as `volatile long`. `TryFire` uses a CAS loop — safe for concurrent callers. Guards are not generated in concurrent mode (TOCTOU risk).
+State is stored as `volatile long`. `TryFire` uses a CAS loop — safe for concurrent callers. Guards are not generated in concurrent mode (TOCTOU risk), so `When = true` there raises warning ZSM0022 and the transition fires unconditionally.
 
 ---
 
@@ -185,6 +185,9 @@ State is stored as `volatile long`. `TryFire` uses a CAS loop — safe for concu
 | ZSM0002 | Warning | State has no outgoing transitions (use `[Terminal]` to acknowledge) |
 | ZSM0003 | Warning | Single-use trigger whose name is close to a reused trigger (possible typo) |
 | ZSM0004 | Error | `Concurrent = true` on a `partial struct` (not supported) |
+| ZSM0022 | Warning | `When = true` on a concurrent machine is ignored; the transition fires unconditionally |
+
+The full list is in the [diagnostics index](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/index.md#diagnostics).
 
 ---
 
