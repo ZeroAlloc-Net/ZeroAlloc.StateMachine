@@ -183,7 +183,7 @@ State is stored as `volatile long`. `TryFire` uses a CAS loop — safe for concu
 |----|----------|-------------|
 | ZSM0001 | Warning | State is unreachable (no transition leads to it, not `InitialState`) |
 | ZSM0002 | Warning | State has no outgoing transitions (use `[Terminal]` to acknowledge) |
-| ZSM0003 | Warning | Trigger appears in only one transition (possible typo) |
+| ZSM0003 | Warning | Single-use trigger whose name is close to a reused trigger (possible typo) |
 | ZSM0004 | Error | `Concurrent = true` on a `partial struct` (not supported) |
 
 ---

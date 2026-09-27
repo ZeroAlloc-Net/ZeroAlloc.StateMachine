@@ -194,7 +194,7 @@ partial class WorkerMachine
 | State field type | `TState` | `long` |
 | `Current` read | direct field | `Volatile.Read` |
 | Transition | direct field write | CAS loop |
-| Guards | Supported | Not generated (ZSM0003) |
+| Guards | Supported | Not generated |
 | Hook timing | before/after field write | after successful CAS |
 
 ---
@@ -220,5 +220,5 @@ dotnet build
 |----|---------|
 | ZSM0001 | A state appears as `From` but nothing leads to it and it is not `InitialState` |
 | ZSM0002 | A state appears as `To` (or is `InitialState`) but has no outgoing transitions and is not marked `[Terminal]` |
-| ZSM0003 | A trigger appears in exactly one transition while other triggers appear multiple times (possible typo) |
+| ZSM0003 | A trigger appears in exactly one transition and its name is close to a trigger used in several (possible typo) |
 | ZSM0004 | `Concurrent = true` on a `partial struct` |

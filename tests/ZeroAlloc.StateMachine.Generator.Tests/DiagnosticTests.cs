@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.CodeAnalysis;
 
 namespace ZeroAlloc.StateMachine.Generator.Tests;
@@ -62,8 +63,128 @@ public class DiagnosticTests
     }
 
     [Fact]
-    public async Task SingleUseTrigger_ZSM0003_Reported()
+    public async Task SingleUseTrigger_ZSM0003_NotReported_ForCanonicalCircuitBreaker()
     {
+        // Trip is shared by Closed and HalfOpen; Probe and Reset are each used once
+        // because each state has its own exit event. None of them is a typo.
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum CbState   { Closed, Open, HalfOpen }
+            public enum CbTrigger { Trip, Probe, Reset }
+
+            [StateMachine(InitialState = nameof(CbState.Closed))]
+            [Transition<CbState, CbTrigger>(From = CbState.Closed,   On = CbTrigger.Trip,  To = CbState.Open)]
+            [Transition<CbState, CbTrigger>(From = CbState.Open,     On = CbTrigger.Probe, To = CbState.HalfOpen)]
+            [Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Reset, To = CbState.Closed)]
+            [Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
+            public partial class TestMachine { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().NotContain(d => d.Id == "ZSM0003");
+    }
+
+    [Fact]
+    public async Task SingleUseTrigger_ZSM0003_Reported_ForTypoOfReusedTrigger()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum CbState   { Closed, Open, HalfOpen }
+            public enum CbTrigger { Trip, Tirp, Probe, Reset }
+
+            [StateMachine(InitialState = nameof(CbState.Closed))]
+            [Transition<CbState, CbTrigger>(From = CbState.Closed,   On = CbTrigger.Trip,  To = CbState.Open)]
+            [Transition<CbState, CbTrigger>(From = CbState.Open,     On = CbTrigger.Probe, To = CbState.HalfOpen)]
+            [Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Reset, To = CbState.Closed)]
+            [Transition<CbState, CbTrigger>(From = CbState.HalfOpen, On = CbTrigger.Trip,  To = CbState.Open)]
+            [Transition<CbState, CbTrigger>(From = CbState.Open,     On = CbTrigger.Tirp,  To = CbState.Open)]
+            public partial class TestMachine { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        var zsm0003 = diagnostics.Where(d => string.Equals(d.Id, "ZSM0003", StringComparison.Ordinal)).ToList();
+        zsm0003.Should().ContainSingle();
+        zsm0003[0].Severity.Should().Be(DiagnosticSeverity.Warning);
+        zsm0003[0].GetMessage(CultureInfo.InvariantCulture)
+            .Should().Be("Trigger 'Tirp' on 'TestMachine' is used once; did you mean 'Trip'?");
+    }
+
+    [Fact]
+    public async Task SingleUseTrigger_ZSM0003_Reported_ForCaseOnlyDifference()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum S { A, B, C }
+            public enum R { Advance, advance }
+
+            [StateMachine(InitialState = nameof(S.A))]
+            [Transition<S, R>(From = S.A, On = R.Advance, To = S.B)]
+            [Transition<S, R>(From = S.B, On = R.Advance, To = S.C)]
+            [Transition<S, R>(From = S.C, On = R.advance, To = S.A)]
+            public partial class TestMachine { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        var zsm0003 = diagnostics.Where(d => string.Equals(d.Id, "ZSM0003", StringComparison.Ordinal)).ToList();
+        zsm0003.Should().ContainSingle();
+        zsm0003[0].GetMessage(CultureInfo.InvariantCulture)
+            .Should().Be("Trigger 'advance' on 'TestMachine' is used once; did you mean 'Advance'?");
+    }
+
+    [Fact]
+    public async Task SingleUseTrigger_ZSM0003_Reported_ForTwoEditsOnLongName()
+    {
+        // Two edits are within reach for names of five or more characters.
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum S { A, B, C }
+            public enum R { Submit, Submti, Sbumti }
+
+            [StateMachine(InitialState = nameof(S.A))]
+            [Transition<S, R>(From = S.A, On = R.Submit, To = S.B)]
+            [Transition<S, R>(From = S.B, On = R.Submit, To = S.C)]
+            [Transition<S, R>(From = S.C, On = R.Submti, To = S.A)]
+            [Transition<S, R>(From = S.B, On = R.Sbumti, To = S.A)]
+            public partial class TestMachine { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Where(d => string.Equals(d.Id, "ZSM0003", StringComparison.Ordinal))
+            .Select(d => d.GetMessage(CultureInfo.InvariantCulture))
+            .Should().Equal(
+                "Trigger 'Submti' on 'TestMachine' is used once; did you mean 'Submit'?",
+                "Trigger 'Sbumti' on 'TestMachine' is used once; did you mean 'Submit'?");
+    }
+
+    [Fact]
+    public async Task SingleUseTrigger_ZSM0003_NotReported_ForTwoEditsOnShortName()
+    {
+        // Short names only tolerate one edit, so Tap is not treated as a typo of Trip.
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum S { A, B, C }
+            public enum R { Trip, Tap }
+
+            [StateMachine(InitialState = nameof(S.A))]
+            [Transition<S, R>(From = S.A, On = R.Trip, To = S.B)]
+            [Transition<S, R>(From = S.B, On = R.Trip, To = S.C)]
+            [Transition<S, R>(From = S.C, On = R.Tap,  To = S.A)]
+            public partial class TestMachine { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().NotContain(d => d.Id == "ZSM0003");
+    }
+
+    [Fact]
+    public async Task SingleUseTrigger_ZSM0003_NotReported_ForDistantName()
+    {
+        // Back is used once and Go twice, but the names are not alike, so Back is not a typo.
         var source = """
             using ZeroAlloc.StateMachine;
             namespace T;
@@ -74,12 +195,32 @@ public class DiagnosticTests
             [Transition<S, R>(From = S.A, On = R.Go,   To = S.B)]
             [Transition<S, R>(From = S.B, On = R.Go,   To = S.C)]
             [Transition<S, R>(From = S.C, On = R.Back, To = S.A)]
-            [Terminal<S>(State = S.C)]
             public partial class TestMachine { }
             """;
 
         var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
-        diagnostics.Should().Contain(d => d.Id == "ZSM0003");
+        diagnostics.Should().NotContain(d => d.Id == "ZSM0003");
+    }
+
+    [Fact]
+    public async Task SingleUseTrigger_ZSM0003_NotReported_WhenNoTriggerIsReused()
+    {
+        // Near names that are each used once have no reused trigger to point at.
+        var source = """
+            using ZeroAlloc.StateMachine;
+            namespace T;
+            public enum S { A, B, C }
+            public enum R { Trip, Tirp, Stop }
+
+            [StateMachine(InitialState = nameof(S.A))]
+            [Transition<S, R>(From = S.A, On = R.Trip, To = S.B)]
+            [Transition<S, R>(From = S.B, On = R.Tirp, To = S.C)]
+            [Transition<S, R>(From = S.C, On = R.Stop, To = S.A)]
+            public partial class TestMachine { }
+            """;
+
+        var diagnostics = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
+        diagnostics.Should().NotContain(d => d.Id == "ZSM0003");
     }
 
     [Fact]
