@@ -1,7 +1,5 @@
 namespace ZeroAlloc.StateMachine.Generator;
 
-using System.Collections.Immutable;
-
 /// <summary>Single [StateMachinePart] declaration captured during parsing.</summary>
 /// <param name="Name">Unique name within the group (e.g. "Operational").</param>
 /// <param name="InitialState">Short enum member name of the part's initial state.</param>
@@ -17,4 +15,4 @@ internal sealed record StateMachinePartModel(
     string StateTypeShort,
     string TriggerTypeFqn,
     string TriggerTypeShort,
-    ImmutableArray<TransitionModel> Transitions);
+    EquatableArray<TransitionModel> Transitions);
