@@ -29,11 +29,10 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                     node is ClassDeclarationSyntax or StructDeclarationSyntax,
                 transform: static (ctx, ct) => Parse(ctx, ct))
             .Where(static m => m is not null)
-            .Select(static (m, _) => m!);
+            .Select(static (m, _) => m!)
+            .WithTrackingName("StateMachines");
 
-        context.RegisterSourceOutput(
-            models.Combine(context.CompilationProvider),
-            static (ctx, tuple) => EmitStateMachine(ctx, tuple.Left, tuple.Right));
+        context.RegisterSourceOutput(models, static (ctx, model) => EmitStateMachine(ctx, model));
 
         var groupModels = context.SyntaxProvider
             .ForAttributeWithMetadataName(
@@ -41,14 +40,15 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 predicate: static (node, _) => node is ClassDeclarationSyntax,
                 transform: static (ctx, ct) => ParseGroup(ctx, ct))
             .Where(static m => m is not null)
-            .Select(static (m, _) => m!);
+            .Select(static (m, _) => m!)
+            .WithTrackingName("StateMachineGroups");
 
         context.RegisterSourceOutput(groupModels, static (ctx, model) =>
         {
             foreach (var diag in model.Diagnostics)
-                ctx.ReportDiagnostic(diag);
+                ctx.ReportDiagnostic(diag.ToDiagnostic());
 
-            if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
+            if (model.Diagnostics.Any(static d => d.IsError))
                 return;
 
             var source = StateMachineGroupWriter.Write(model);
@@ -59,13 +59,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         });
     }
 
-    private static void EmitStateMachine(SourceProductionContext ctx, StateMachineModel model, Compilation compilation)
+    private static void EmitStateMachine(SourceProductionContext ctx, StateMachineModel model)
     {
         foreach (var diag in model.Diagnostics)
-            ctx.ReportDiagnostic(diag);
+            ctx.ReportDiagnostic(diag.ToDiagnostic());
 
         // Do not emit source if any diagnostic is a hard error — the model is invalid
-        if (model.Diagnostics.Any(static d => d.Severity == DiagnosticSeverity.Error))
+        if (model.Diagnostics.Any(static d => d.IsError))
             return;
 
         // Skip emit when there are no transitions — the model was only built so that
@@ -73,11 +73,16 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         if (model.Transitions.IsEmpty)
             return;
 
+        // Sub-machines were resolved while parsing, so this step needs no compilation: combined
+        // with the compilation it ran again, and re-emitted every machine, on every edit.
         System.Func<string, StateMachineModel?> resolver = fqn =>
         {
-            var clean = fqn.StartsWith("global::", StringComparison.Ordinal) ? fqn.Substring(8) : fqn;
-            var sym = compilation.GetTypeByMetadataName(clean);
-            return sym is null ? null : BuildModelFromSymbol(sym);
+            foreach (var sub in model.SubMachines)
+            {
+                if (string.Equals(sub.Fqn, fqn, StringComparison.Ordinal))
+                    return sub.Model;
+            }
+            return null;
         };
 
         var source = StateMachineWriter.Write(model, resolver);
@@ -95,7 +100,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var ns = type.ContainingNamespace.IsGlobalNamespace
                  ? null
                  : type.ContainingNamespace.ToDisplayString();
-        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
 
         var groupAttr = ctx.Attributes[0];
         var diagram = groupAttr.NamedArguments
@@ -105,7 +110,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var hasUserCtor = type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared);
 
         ct.ThrowIfCancellationRequested();
-        AnalyzeGroupDiagnostics(type, parts, diagram, diagnostics);
+        AnalyzeGroupDiagnostics(type, groupAttr, parts, diagram, diagnostics);
 
         return new StateMachineGroupModel(
             ns, type.Name, parts,
@@ -201,23 +206,23 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
     private static void AnalyzeGroupDiagnostics(
         INamedTypeSymbol type,
+        AttributeData groupAttr,
         ImmutableArray<StateMachinePartModel> parts,
         bool diagram,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
-
-        AnalyzeGroupExclusivity(type, location, diagnostics);
-        AnalyzeGroupEmpty(type, parts, location, diagnostics);
-        AnalyzeDuplicatePartNames(type, parts, location, diagnostics);
-        AnalyzeUnknownTransitionParts(type, parts, location, diagnostics);
-        AnalyzeCompositeInGroup(type, location, diagnostics);
+        AnalyzeGroupExclusivity(type, diagnostics);
+        AnalyzeGroupEmpty(type, groupAttr, parts, diagnostics);
+        AnalyzeDuplicatePartNames(type, diagnostics);
+        AnalyzeUnknownTransitionParts(type, parts, diagnostics);
+        AnalyzeCompositeInGroup(type, diagnostics);
 
         var anyTransition = parts.Any(static p => !p.Transitions.IsEmpty);
         if (diagram && !anyTransition)
         {
-            diagnostics.Add(Diagnostic.Create(
-                StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.EmptyDiagramRequest,
+                GetNamedArgumentLocation(groupAttr, "Diagram", type), type.Name));
         }
 
         // Every [StateMachinePart] is concurrent, so a guard on any part's transition is dropped.
@@ -227,52 +232,69 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeMissingHookConstructorInvocation(type, hasTimedInGroup, diagnostics);
     }
 
-    // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class
+    // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class, at the [StateMachine]
     private static void AnalyzeGroupExclusivity(
-        INamedTypeSymbol type, Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        INamedTypeSymbol type,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var hasStateMachine = type.GetAttributes().Any(a =>
+        var stateMachineAttr = type.GetAttributes().FirstOrDefault(a =>
             string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
-        if (hasStateMachine)
+        if (stateMachineAttr is not null)
         {
-            diagnostics.Add(Diagnostic.Create(
-                StateMachineDiagnostics.StateMachineAndGroupExclusive, location, type.Name));
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.StateMachineAndGroupExclusive,
+                GetAttributeLocation(stateMachineAttr, type), type.Name));
         }
     }
 
-    // ZSM0017: [StateMachineGroup] with zero [StateMachinePart]
+    // ZSM0017: [StateMachineGroup] with zero [StateMachinePart], at the [StateMachineGroup]
     private static void AnalyzeGroupEmpty(
-        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
-        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+        INamedTypeSymbol type, AttributeData groupAttr,
+        ImmutableArray<StateMachinePartModel> parts,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         if (parts.IsEmpty)
         {
-            diagnostics.Add(Diagnostic.Create(
-                StateMachineDiagnostics.EmptyStateMachineGroup, location, type.Name));
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.EmptyStateMachineGroup,
+                GetAttributeLocation(groupAttr, type), type.Name));
         }
     }
 
-    // ZSM0015: duplicate Name on [StateMachinePart]
+    // ZSM0015: duplicate Name on [StateMachinePart], at the Name of each later duplicate. Walks
+    // the attributes CollectPartDeclarations keeps, in the same order, so a part it drops for a
+    // missing Name or InitialState is not reported here either.
     private static void AnalyzeDuplicatePartNames(
-        INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
-        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+        INamedTypeSymbol type,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
-        foreach (var p in parts)
+        foreach (var attr in type.GetAttributes())
         {
-            if (!seen.Add(p.Name))
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, StateMachinePartAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var name = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "Name", StringComparison.Ordinal)).Value.Value as string;
+            var initial = GetEnumMemberName(attr, "InitialState", ac.TypeArguments[0]);
+            if (string.IsNullOrEmpty(name) || initial is null) continue;
+
+            if (!seen.Add(name!))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.DuplicateStateMachinePartName, location, type.Name, p.Name));
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.DuplicateStateMachinePartName,
+                    GetNamedArgumentLocation(attr, "Name", type), type.Name, name));
             }
         }
     }
 
-    // ZSM0016: [Transition].Part references unknown part (or is null when class is a group)
+    // ZSM0016: [Transition].Part references unknown part (or is null when class is a group), at
+    // the Part argument, or at the [Transition] when it has none
     private static void AnalyzeUnknownTransitionParts(
         INamedTypeSymbol type, ImmutableArray<StateMachinePartModel> parts,
-        Location location, ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var partNames = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
         foreach (var p in parts) partNames.Add(p.Name);
@@ -289,24 +311,26 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
             if (partName is null || !partNames.Contains(partName))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.TransitionPartUnknown, location,
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.TransitionPartUnknown,
+                    GetNamedArgumentLocation(attr, "Part", type),
                     partName ?? "<null>", type.Name));
             }
         }
     }
 
-    // ZSM0018: [CompositeState] on a [StateMachineGroup]
+    // ZSM0018: [CompositeState] on a [StateMachineGroup], at the first [CompositeState]
     private static void AnalyzeCompositeInGroup(
-        INamedTypeSymbol type, Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        INamedTypeSymbol type,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var hasComposite = type.GetAttributes().Any(a =>
+        var compositeAttr = type.GetAttributes().FirstOrDefault(a =>
             string.Equals(a.AttributeClass?.MetadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal));
-        if (hasComposite)
+        if (compositeAttr is not null)
         {
-            diagnostics.Add(Diagnostic.Create(
-                StateMachineDiagnostics.CompositeStateInGroup, location, type.Name));
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.CompositeStateInGroup,
+                GetAttributeLocation(compositeAttr, type), type.Name));
         }
     }
 
@@ -361,7 +385,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             HasUserCtor: hasUserCtor,
             HasUserParameterlessCtor: hasUserParameterlessCtor,
             Diagram: diagram,
-            Diagnostics: ImmutableArray<Diagnostic>.Empty);
+            SubMachines: EquatableArray<SubMachineModel>.Empty,
+            Diagnostics: EquatableArray<DiagnosticInfo>.Empty);
     }
 
     private static StateMachineModel? Parse(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
@@ -397,15 +422,19 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .Any(c => !c.IsImplicitlyDeclared);
         var hasUserParameterlessCtor = type.InstanceConstructors
             .Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty);
-        var diagnostics = ImmutableArray.CreateBuilder<Diagnostic>();
+        var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
 
         ct.ThrowIfCancellationRequested();
         AnalyzeDiagnostics(initialState, transitions, terminalStates,
-            compositeStates, historyStates,
+            historyStates,
             stateTypeShort ?? string.Empty,
             triggerTypeFqn ?? string.Empty,
             triggerTypeShort ?? string.Empty,
-            type, isStruct, concurrent, diagram, diagnostics);
+            type, smAttr, isStruct, concurrent, diagram, diagnostics);
+
+        var subMachines = diagram && !compositeStates.IsEmpty
+            ? CollectSubMachines(type)
+            : ImmutableArray<SubMachineModel>.Empty;
 
         return new StateMachineModel(
             ns, type.Name, isStruct,
@@ -419,7 +448,44 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             HasUserCtor: hasUserCtor,
             HasUserParameterlessCtor: hasUserParameterlessCtor,
             Diagram: diagram,
-            diagnostics.ToImmutable());
+            SubMachines: subMachines,
+            Diagnostics: diagnostics.ToImmutable());
+    }
+
+    /// <summary>
+    /// Every sub-machine the Mermaid diagram of <paramref name="type"/> expands: those of its
+    /// composite states, and theirs in turn. Each is listed once, which also stops a cycle.
+    /// </summary>
+    private static ImmutableArray<SubMachineModel> CollectSubMachines(INamedTypeSymbol type)
+    {
+        var result = ImmutableArray.CreateBuilder<SubMachineModel>();
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
+        var pending = new System.Collections.Generic.Stack<INamedTypeSymbol>();
+        pending.Push(type);
+
+        while (pending.Count > 0)
+        {
+            var current = pending.Pop();
+            foreach (var attr in current.GetAttributes())
+            {
+                if (!string.Equals(attr.AttributeClass?.MetadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal))
+                    continue;
+                if (attr.NamedArguments.FirstOrDefault(kv => string.Equals(kv.Key, "SubMachine", StringComparison.Ordinal))
+                        .Value.Value is not INamedTypeSymbol sub)
+                    continue;
+
+                var fqn = sub.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat);
+                if (!seen.Add(fqn)) continue;
+
+                var model = BuildModelFromSymbol(sub);
+                if (model is null) continue;
+
+                result.Add(new SubMachineModel(fqn, model));
+                pending.Push(sub);
+            }
+        }
+
+        return result.ToImmutable();
     }
 
     private static (
@@ -576,23 +642,23 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         string initialState,
         ImmutableArray<TransitionModel> transitions,
         ImmutableArray<string> terminalStates,
-        ImmutableArray<CompositeStateModel> compositeStates,
         ImmutableArray<HistoryStateModel> historyStates,
         string stateTypeShort,
         string triggerTypeFqn,
         string triggerTypeShort,
         INamedTypeSymbol type,
+        AttributeData smAttr,
         bool isStruct,
         bool concurrent,
         bool diagram,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
-
+        // ZSM0004: at the Concurrent argument a struct cannot honour
         if (isStruct && concurrent)
         {
-            diagnostics.Add(Diagnostic.Create(
-                StateMachineDiagnostics.StructConcurrentNotSupported, location,
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.StructConcurrentNotSupported,
+                GetNamedArgumentLocation(smAttr, "Concurrent", type),
                 type.Name));
             return;
         }
@@ -608,13 +674,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             allTriggers[i] = transitions[i].On;
         }
 
-        AnalyzeReachability(initialState, terminalStates, stateTypeShort, type, location, allFromStates, allToStates, diagnostics);
-        AnalyzeTriggerUsage(type, location, allTriggers, diagnostics);
-        AnalyzeCompositeStates(compositeStates, historyStates, terminalStates,
+        AnalyzeReachability(initialState, terminalStates, stateTypeShort, type, allFromStates, allToStates, diagnostics);
+        AnalyzeTriggerUsage(type, allTriggers, diagnostics);
+        AnalyzeCompositeStates(historyStates, terminalStates,
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
-        AnalyzeTimedTransitions(transitions, stateTypeShort, type, concurrent, diagnostics);
+        AnalyzeTimedTransitions(stateTypeShort, type, concurrent, diagnostics);
         AnalyzeDisposeConflict(type, transitions, diagnostics);
-        AnalyzeEmptyDiagramRequest(diagram, transitions, type, diagnostics);
+        AnalyzeEmptyDiagramRequest(diagram, transitions, type, smAttr, diagnostics);
         AnalyzeGuardsOnConcurrentMachine(type, concurrent, diagnostics);
 
         var hasTimed = transitions.Any(static t => t.AfterMs > 0);
@@ -627,7 +693,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private static void AnalyzeGuardsOnConcurrentMachine(
         INamedTypeSymbol type,
         bool concurrent,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         if (!concurrent) return;
 
@@ -647,13 +713,18 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             var to   = GetEnumMemberName(attr, "To",   ac.TypeArguments[0]);
             if (from is null || on is null || to is null) continue;
 
-            diagnostics.Add(Diagnostic.Create(
+            diagnostics.Add(DiagnosticInfo.Create(
                 StateMachineDiagnostics.GuardIgnoredOnConcurrentMachine,
                 GetNamedArgumentLocation(attr, "When", type),
                 ac.TypeArguments[0].Name, from, ac.TypeArguments[1].Name, on, to, type.Name));
         }
     }
 
+    /// <summary>
+    /// The named argument <paramref name="name"/> of <paramref name="attr"/>, or the attribute
+    /// when it has no such argument. The location is in the attribute's own syntax tree, so
+    /// <c>#pragma warning disable</c> around the attribute covers it.
+    /// </summary>
     private static Location GetNamedArgumentLocation(AttributeData attr, string name, INamedTypeSymbol type)
     {
         if (attr.ApplicationSyntaxReference?.GetSyntax() is AttributeSyntax syntax)
@@ -663,27 +734,97 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             return (argument ?? (SyntaxNode)syntax).GetLocation();
         }
 
-        return type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+        return GetTypeLocation(type);
+    }
+
+    private static Location GetAttributeLocation(AttributeData attr, INamedTypeSymbol type) =>
+        attr.ApplicationSyntaxReference is { } reference
+            ? Location.Create(reference.SyntaxTree, reference.Span)
+            : GetTypeLocation(type);
+
+    // Fallback for an attribute without syntax, which one applied in source never is. The
+    // generator only runs on types declared in source, so the type has a source location.
+    private static Location GetTypeLocation(INamedTypeSymbol type) => type.Locations[0];
+
+    /// <summary>
+    /// The [Transition] attributes <see cref="CollectTransition"/> keeps, in declaration order,
+    /// with their resolved From, On and To.
+    /// </summary>
+    private static System.Collections.Generic.IEnumerable<(AttributeData Attr, string From, string On, string To)> TransitionAttributes(
+        INamedTypeSymbol type)
+    {
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 2) continue;
+
+            var from = GetEnumMemberName(attr, "From", ac.TypeArguments[0]);
+            var on   = GetEnumMemberName(attr, "On",   ac.TypeArguments[1]);
+            var to   = GetEnumMemberName(attr, "To",   ac.TypeArguments[0]);
+            if (from is null || on is null || to is null) continue;
+
+            yield return (attr, from, on, to);
+        }
+    }
+
+    /// <summary>
+    /// The first [Transition] whose From, On or To, as <paramref name="selector"/> picks it,
+    /// is <paramref name="value"/>, at its <paramref name="argument"/>.
+    /// </summary>
+    private static Location GetTransitionArgumentLocation(
+        INamedTypeSymbol type, string argument,
+        System.Func<(AttributeData Attr, string From, string On, string To), string> selector, string value)
+    {
+        foreach (var t in TransitionAttributes(type))
+        {
+            if (string.Equals(selector(t), value, StringComparison.Ordinal))
+                return GetNamedArgumentLocation(t.Attr, argument, type);
+        }
+        return GetTypeLocation(type);
+    }
+
+    /// <summary>
+    /// The single-type-argument attributes named <paramref name="metadataName"/> whose State
+    /// resolves, in declaration order.
+    /// </summary>
+    private static System.Collections.Generic.IEnumerable<(AttributeData Attr, string State)> StateAttributes(
+        INamedTypeSymbol type, string metadataName)
+    {
+        foreach (var attr in type.GetAttributes())
+        {
+            var ac = attr.AttributeClass;
+            if (ac is null) continue;
+            if (!string.Equals(ac.MetadataName, metadataName, StringComparison.Ordinal)) continue;
+            if (ac.TypeArguments.Length != 1) continue;
+
+            var state = GetEnumMemberName(attr, "State", ac.TypeArguments[0]);
+            if (state is null) continue;
+
+            yield return (attr, state);
+        }
     }
 
     private static void AnalyzeEmptyDiagramRequest(
         bool diagram,
         ImmutableArray<TransitionModel> transitions,
         INamedTypeSymbol type,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        AttributeData smAttr,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         if (!diagram) return;
         if (!transitions.IsEmpty) return;
 
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
-        diagnostics.Add(Diagnostic.Create(
-            StateMachineDiagnostics.EmptyDiagramRequest, location, type.Name));
+        diagnostics.Add(DiagnosticInfo.Create(
+            StateMachineDiagnostics.EmptyDiagramRequest,
+            GetNamedArgumentLocation(smAttr, "Diagram", type), type.Name));
     }
 
     private static void AnalyzeMissingHookConstructorInvocation(
         INamedTypeSymbol type,
         bool hasTimedEdges,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         if (!hasTimedEdges) return;
 
@@ -692,15 +833,14 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .ToArray();
         if (userCtors.Length == 0) return;
 
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
-
         foreach (var ctor in userCtors)
         {
             if (CtorInvokesHookConstructor(ctor)) return;
         }
 
-        diagnostics.Add(Diagnostic.Create(
-            StateMachineDiagnostics.MissingHookConstructorInvocation, location, type.Name));
+        // At the first user constructor, since none of them arms the initial-state timers.
+        diagnostics.Add(DiagnosticInfo.Create(
+            StateMachineDiagnostics.MissingHookConstructorInvocation, userCtors[0].Locations[0], type.Name));
     }
 
     private static bool CtorInvokesHookConstructor(IMethodSymbol ctor)
@@ -738,10 +878,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         ImmutableArray<string> terminalStates,
         string stateTypeShort,
         INamedTypeSymbol type,
-        Location location,
         System.Collections.Generic.HashSet<string> allFromStates,
         System.Collections.Generic.HashSet<string> allToStates,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         // ZSM0001: states that appear in From but never in To and are not InitialState → unreachable
         foreach (var fromState in allFromStates)
@@ -749,8 +888,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             if (!allToStates.Contains(fromState) &&
                 !string.Equals(fromState, initialState, StringComparison.Ordinal))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.UnreachableState, location,
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.UnreachableState,
+                    GetTransitionArgumentLocation(type, "From", static t => t.From, fromState),
                     fromState, type.Name));
             }
         }
@@ -761,8 +901,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         {
             if (!allFromStates.Contains(toState) && !terminalSet.Contains(toState))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.SinkState, location,
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.SinkState,
+                    GetTransitionArgumentLocation(type, "To", static t => t.To, toState),
                     toState, type.Name, stateTypeShort));
             }
         }
@@ -770,9 +911,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
     private static void AnalyzeTriggerUsage(
         INamedTypeSymbol type,
-        Location location,
         string[] allTriggers,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         // ZSM0003: a trigger used in exactly one transition whose name is close to a trigger
         // used in several. A typo appears once, next to the real trigger it was meant to be.
@@ -817,8 +957,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
             if (intended is not null)
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.SingleUseTrigger, location,
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.SingleUseTrigger,
+                    GetTransitionArgumentLocation(type, "On", static t => t.On, candidate),
                     candidate, type.Name, intended));
             }
         }
@@ -876,7 +1017,6 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     }
 
     private static void AnalyzeCompositeStates(
-        ImmutableArray<CompositeStateModel> compositeStates,
         ImmutableArray<HistoryStateModel> historyStates,
         ImmutableArray<string> terminalStates,
         string stateTypeShort,
@@ -884,47 +1024,68 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         string parentTriggerTypeShort,
         INamedTypeSymbol type,
         bool concurrent,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
+        var composites = CompositeAttributes(type);
 
-        if (AnalyzeCompositeConcurrent(compositeStates, type, concurrent, location, diagnostics))
+        if (AnalyzeCompositeConcurrent(composites, type, concurrent, diagnostics))
             return; // ZSM0005 fired — model is invalid, skip remaining composite analysis
 
-        var seenStates = AnalyzeCompositeDuplicates(compositeStates, stateTypeShort, type, location, diagnostics);
-        AnalyzeCompositeInvalidStates(compositeStates, stateTypeShort, type, location, diagnostics);
-        AnalyzeCompositeSubMachineValidity(compositeStates, stateTypeShort,
-            parentTriggerTypeFqn, parentTriggerTypeShort, type, location, diagnostics);
-        AnalyzeOrphanedHistory(historyStates, seenStates, stateTypeShort, type, location, diagnostics);
-        AnalyzeCompositeTerminalConflict(compositeStates, terminalStates, stateTypeShort, type, location, diagnostics);
+        var seenStates = AnalyzeCompositeDuplicates(composites, stateTypeShort, type, diagnostics);
+        AnalyzeCompositeInvalidStates(composites, stateTypeShort, type, diagnostics);
+        AnalyzeCompositeSubMachineValidity(composites, stateTypeShort,
+            parentTriggerTypeFqn, parentTriggerTypeShort, type, diagnostics);
+        AnalyzeOrphanedHistory(historyStates, seenStates, stateTypeShort, type, diagnostics);
+        AnalyzeCompositeTerminalConflict(composites, terminalStates, stateTypeShort, type, diagnostics);
+    }
+
+    /// <summary>
+    /// The [CompositeState] attributes <see cref="CollectCompositeState"/> keeps, in the same
+    /// order, with their resolved State and SubMachine, so each finding can point at its own.
+    /// </summary>
+    private static ImmutableArray<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)> CompositeAttributes(
+        INamedTypeSymbol type)
+    {
+        var result = ImmutableArray.CreateBuilder<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)>();
+        foreach (var (attr, state) in StateAttributes(type, CompositeStateAttributeMetadataName))
+        {
+            if (attr.NamedArguments.FirstOrDefault(kv => string.Equals(kv.Key, "SubMachine", StringComparison.Ordinal))
+                    .Value.Value is INamedTypeSymbol subMachine)
+            {
+                result.Add((attr, state, subMachine));
+            }
+        }
+        return result.ToImmutable();
     }
 
     private static void AnalyzeTimedTransitions(
-        ImmutableArray<TransitionModel> transitions,
         string stateTypeShort,
         INamedTypeSymbol type,
         bool concurrent,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
-
-        foreach (var t in transitions)
+        // The transitions CollectTransition keeps, walked from their attributes so each finding
+        // points at the AfterMs argument of its own transition.
+        foreach (var (attr, from, on, to) in TransitionAttributes(type))
         {
-            if (t.AfterMs == 0) continue;
+            var afterMs = attr.NamedArguments
+                .FirstOrDefault(kv => string.Equals(kv.Key, "AfterMs", StringComparison.Ordinal)).Value.Value is int ms ? ms : 0;
+            if (afterMs == 0) continue;
 
-            if (t.AfterMs < 0)
+            var location = GetNamedArgumentLocation(attr, "AfterMs", type);
+            if (afterMs < 0)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     StateMachineDiagnostics.TimedTransitionInvalidDuration, location,
-                    stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+                    stateTypeShort, from, on, to, afterMs, type.Name));
                 continue;
             }
 
             if (!concurrent)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     StateMachineDiagnostics.TimedTransitionRequiresConcurrent, location,
-                    stateTypeShort, t.From, t.On, t.To, t.AfterMs, type.Name));
+                    stateTypeShort, from, on, to, afterMs, type.Name));
             }
         }
     }
@@ -932,12 +1093,10 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private static void AnalyzeDisposeConflict(
         INamedTypeSymbol type,
         ImmutableArray<TransitionModel> transitions,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var hasTimed = transitions.Any(static t => t.AfterMs > 0);
         if (!hasTimed) return;
-
-        var location = type.Locations.Length > 0 ? type.Locations[0] : Location.None;
 
         foreach (var member in type.GetMembers("Dispose").OfType<IMethodSymbol>())
         {
@@ -949,60 +1108,60 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 member.Parameters.Length == 0;
             if (!isCompatible)
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.DisposeSignatureConflict, location,
+                // At the conflicting Dispose itself.
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.DisposeSignatureConflict, member.Locations[0],
                     type.Name));
                 return; // one diagnostic per type is enough
             }
         }
     }
 
-    // ZSM0005: composite + concurrent
+    // ZSM0005: composite + concurrent, at the first [CompositeState]
     private static bool AnalyzeCompositeConcurrent(
-        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)> composites,
         INamedTypeSymbol type,
         bool concurrent,
-        Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        if (concurrent && !compositeStates.IsEmpty)
+        if (concurrent && !composites.IsEmpty)
         {
-            diagnostics.Add(Diagnostic.Create(
-                StateMachineDiagnostics.CompositeStateOnConcurrentMachine, location,
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.CompositeStateOnConcurrentMachine,
+                GetAttributeLocation(composites[0].Attr, type),
                 type.Name));
             return true;
         }
         return false;
     }
 
-    // ZSM0009: duplicate composite declarations
+    // ZSM0009: duplicate composite declarations, at each later duplicate
     private static System.Collections.Generic.HashSet<string> AnalyzeCompositeDuplicates(
-        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)> composites,
         string stateTypeShort,
         INamedTypeSymbol type,
-        Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         var seenStates = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
-        foreach (var cs in compositeStates)
+        foreach (var cs in composites)
         {
             if (!seenStates.Add(cs.State))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.DuplicateCompositeState, location,
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.DuplicateCompositeState,
+                    GetAttributeLocation(cs.Attr, type),
                     type.Name, stateTypeShort, cs.State));
             }
         }
         return seenStates;
     }
 
-    // ZSM0008: composite state value not in TState
+    // ZSM0008: composite state value not in TState, at its State argument
     private static void AnalyzeCompositeInvalidStates(
-        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)> composites,
         string stateTypeShort,
         INamedTypeSymbol type,
-        Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         INamedTypeSymbol? stateEnum = null;
         foreach (var attr in type.GetAttributes())
@@ -1022,37 +1181,37 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var validStates = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal);
         foreach (var m in stateEnum.GetMembers().OfType<IFieldSymbol>())
             validStates.Add(m.Name);
-        foreach (var cs in compositeStates)
+        foreach (var cs in composites)
         {
             if (!validStates.Contains(cs.State))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.CompositeStateInvalidStateValue, location,
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.CompositeStateInvalidStateValue,
+                    GetNamedArgumentLocation(cs.Attr, "State", type),
                     cs.State, type.Name, stateTypeShort));
             }
         }
     }
 
-    // ZSM0006 + ZSM0007: sub-machine validity
+    // ZSM0006 + ZSM0007: sub-machine validity, at the SubMachine argument
     private static void AnalyzeCompositeSubMachineValidity(
-        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)> composites,
         string stateTypeShort,
         string parentTriggerTypeFqn,
         string parentTriggerTypeShort,
         INamedTypeSymbol type,
-        Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        foreach (var cs in compositeStates)
+        foreach (var cs in composites)
         {
-            var subTypeSymbol = ResolveSubMachineSymbol(type, cs.State);
-            if (subTypeSymbol is null) continue;
+            var subTypeSymbol = cs.SubMachine;
+            var location = GetNamedArgumentLocation(cs.Attr, "SubMachine", type);
 
             var hasStateMachineAttr = subTypeSymbol.GetAttributes().Any(a =>
                 string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
             if (!hasStateMachineAttr)
             {
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     StateMachineDiagnostics.SubMachineIsNotStateMachine, location,
                     stateTypeShort, cs.State, type.Name, subTypeSymbol.Name));
                 continue;
@@ -1063,7 +1222,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 !string.Equals(subTriggerFqn, parentTriggerTypeFqn, StringComparison.Ordinal))
             {
                 var subTriggerShort = subTriggerFqn.Substring(subTriggerFqn.LastIndexOf('.') + 1);
-                diagnostics.Add(Diagnostic.Create(
+                diagnostics.Add(DiagnosticInfo.Create(
                     StateMachineDiagnostics.SubMachineTriggerMismatch, location,
                     stateTypeShort, cs.State, type.Name, subTypeSymbol.Name,
                     subTriggerShort, parentTriggerTypeShort));
@@ -1071,65 +1230,51 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
     }
 
-    // ZSM0010: [HistoryState] without [CompositeState]
+    // ZSM0010: [HistoryState] without [CompositeState], at the [HistoryState]
     private static void AnalyzeOrphanedHistory(
         ImmutableArray<HistoryStateModel> historyStates,
         System.Collections.Generic.HashSet<string> seenStates,
         string stateTypeShort,
         INamedTypeSymbol type,
-        Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        foreach (var hs in historyStates)
+        if (historyStates.IsEmpty) return;
+
+        foreach (var (attr, state) in StateAttributes(type, HistoryStateAttributeMetadataName))
         {
-            if (!seenStates.Contains(hs.State))
+            if (!seenStates.Contains(state))
             {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.HistoryWithoutComposite, location,
-                    stateTypeShort, hs.State, type.Name));
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.HistoryWithoutComposite,
+                    GetAttributeLocation(attr, type),
+                    stateTypeShort, state, type.Name));
             }
         }
     }
 
-    // ZSM0011: composite + [Terminal] on same state
+    // ZSM0011: composite + [Terminal] on same state, at the [Terminal]
     private static void AnalyzeCompositeTerminalConflict(
-        ImmutableArray<CompositeStateModel> compositeStates,
+        ImmutableArray<(AttributeData Attr, string State, INamedTypeSymbol SubMachine)> composites,
         ImmutableArray<string> terminalStates,
         string stateTypeShort,
         INamedTypeSymbol type,
-        Location location,
-        ImmutableArray<Diagnostic>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
-        var terminalSet = new System.Collections.Generic.HashSet<string>(terminalStates, StringComparer.Ordinal);
-        foreach (var cs in compositeStates)
-        {
-            if (terminalSet.Contains(cs.State))
-            {
-                diagnostics.Add(Diagnostic.Create(
-                    StateMachineDiagnostics.CompositeAndTerminalOnSameState, location,
-                    stateTypeShort, cs.State, type.Name));
-            }
-        }
-    }
+        if (terminalStates.IsEmpty) return;
 
-    private static INamedTypeSymbol? ResolveSubMachineSymbol(INamedTypeSymbol parentType, string compositeStateName)
-    {
-        foreach (var attr in parentType.GetAttributes())
+        foreach (var cs in composites)
         {
-            var ac = attr.AttributeClass;
-            if (ac is null) continue;
-            if (!string.Equals(ac.MetadataName, CompositeStateAttributeMetadataName, StringComparison.Ordinal))
-                continue;
-            if (ac.TypeArguments.Length != 1) continue;
-            var stateName = GetEnumMemberName(attr, "State", ac.TypeArguments[0]);
-            if (!string.Equals(stateName, compositeStateName, StringComparison.Ordinal)) continue;
-            if (attr.NamedArguments.FirstOrDefault(kv => string.Equals(kv.Key, "SubMachine", StringComparison.Ordinal))
-                                  .Value.Value is INamedTypeSymbol s)
+            foreach (var (attr, state) in StateAttributes(type, TerminalAttributeMetadataName))
             {
-                return s;
+                if (!string.Equals(state, cs.State, StringComparison.Ordinal)) continue;
+
+                diagnostics.Add(DiagnosticInfo.Create(
+                    StateMachineDiagnostics.CompositeAndTerminalOnSameState,
+                    GetAttributeLocation(attr, type),
+                    stateTypeShort, cs.State, type.Name));
+                break;
             }
         }
-        return null;
     }
 
     private static string? ResolveSubMachineTriggerTypeFqn(INamedTypeSymbol subMachineType)

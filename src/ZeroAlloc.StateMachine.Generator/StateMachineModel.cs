@@ -1,8 +1,5 @@
 namespace ZeroAlloc.StateMachine.Generator;
 
-using Microsoft.CodeAnalysis;
-using System.Collections.Immutable;
-
 /// <summary>Immutable model of a [StateMachine] type, built by the generator parser.</summary>
 internal sealed record StateMachineModel(
     string? Namespace,
@@ -14,12 +11,14 @@ internal sealed record StateMachineModel(
     string StateTypeShort,     // e.g. "OrderState"
     string TriggerTypeFqn,     // e.g. "global::MyApp.OrderTrigger"
     string TriggerTypeShort,   // e.g. "OrderTrigger"
-    ImmutableArray<TransitionModel> Transitions,
-    ImmutableArray<string> TerminalStates,    // short enum member names
-    ImmutableArray<CompositeStateModel> CompositeStates,
-    ImmutableArray<HistoryStateModel> HistoryStates,
+    EquatableArray<TransitionModel> Transitions,
+    EquatableArray<string> TerminalStates,    // short enum member names
+    EquatableArray<CompositeStateModel> CompositeStates,
+    EquatableArray<HistoryStateModel> HistoryStates,
     bool HasUserCtor,
     bool HasUserParameterlessCtor,
     bool Diagram,
-    ImmutableArray<Diagnostic> Diagnostics
+    EquatableArray<SubMachineModel> SubMachines,  // every sub-machine the diagram expands, transitively
+    EquatableArray<DiagnosticInfo> Diagnostics
 );
+
