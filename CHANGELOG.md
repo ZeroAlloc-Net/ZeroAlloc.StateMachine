@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.0...v1.6.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* mark released analyzer rules and public api as shipped and automate the move ([#153](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/153)) ([ce7892b](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/ce7892b0befd043dd1d165046269d225c0c34c0b))
+* report ZSM diagnostics at the attribute, argument or member they are about ([#155](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/155)) ([2d9fe80](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/2d9fe80e529aa8efe76658d06ecca6297e846d13))
+
 ## [1.6.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.5.4...v1.6.0) (2026-09-27)
 
 
