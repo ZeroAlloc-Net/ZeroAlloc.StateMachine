@@ -218,7 +218,33 @@ dotnet build
 
 | ID | Trigger |
 |----|---------|
-| ZSM0001 | A state appears as `From` but nothing leads to it and it is not `InitialState` |
-| ZSM0002 | A state appears as `To` (or is `InitialState`) but has no outgoing transitions and is not marked `[Terminal]` |
-| ZSM0003 | A trigger appears in exactly one transition and its name is close to a trigger used in several (possible typo) |
-| ZSM0004 | `Concurrent = true` on a `partial struct` |
+| [ZSM0001](diagnostics/ZSM0001.md) | A state appears as `From` but nothing leads to it and it is not `InitialState` |
+| [ZSM0002](diagnostics/ZSM0002.md) | A state appears as `To` (or is `InitialState`) but has no outgoing transitions and is not marked `[Terminal]` |
+| [ZSM0003](diagnostics/ZSM0003.md) | A trigger appears in exactly one transition and its name is close to a trigger used in several (possible typo) |
+| [ZSM0004](diagnostics/ZSM0004.md) | `Concurrent = true` on a `partial struct` |
+| [ZSM0005](diagnostics/ZSM0005.md) | `[CompositeState]` on a machine with `Concurrent = true` |
+| [ZSM0006](diagnostics/ZSM0006.md) | A `[CompositeState]` `SubMachine` type is not a `[StateMachine]` partial class |
+| [ZSM0007](diagnostics/ZSM0007.md) | A sub-machine declares a different trigger type than its parent |
+| [ZSM0008](diagnostics/ZSM0008.md) | A `[CompositeState]` `State` value is not a member of the parent's state enum |
+| [ZSM0009](diagnostics/ZSM0009.md) | The same state is declared as composite more than once |
+| [ZSM0010](diagnostics/ZSM0010.md) | `[HistoryState]` on a state with no matching `[CompositeState]` |
+| [ZSM0011](diagnostics/ZSM0011.md) | A state is declared both `[CompositeState]` and `[Terminal]` |
+| [ZSM0012](diagnostics/ZSM0012.md) | `AfterMs` on a machine without `Concurrent = true` |
+| [ZSM0013](diagnostics/ZSM0013.md) | `AfterMs` is zero or negative |
+| [ZSM0014](diagnostics/ZSM0014.md) | A class declares both `[StateMachine]` and `[StateMachineGroup]` |
+| [ZSM0015](diagnostics/ZSM0015.md) | Two `[StateMachinePart]`s on a class share a `Name` |
+| [ZSM0016](diagnostics/ZSM0016.md) | A transition in a `[StateMachineGroup]` names no declared part |
+| [ZSM0017](diagnostics/ZSM0017.md) | A `[StateMachineGroup]` declares no parts |
+| [ZSM0018](diagnostics/ZSM0018.md) | `[CompositeState]` inside a `[StateMachineGroup]` |
+| [ZSM0019](diagnostics/ZSM0019.md) | A user-declared `Dispose` conflicts with the generated `public void Dispose()` |
+| [ZSM0020](diagnostics/ZSM0020.md) | `Diagram = true` on a class with no transitions |
+| [ZSM0021](diagnostics/ZSM0021.md) | A user-declared constructor on a machine with timed transitions does not call `HookConstructor()` |
+| [ZSM0022](diagnostics/ZSM0022.md) | `When = true` on a concurrent machine, where the guard is ignored |
+
+Each ID links to its own page, with its severity, examples and fixes.
+
+## Release tracking
+
+`src/ZeroAlloc.StateMachine.Generator/AnalyzerReleases.Shipped.md` records the release each diagnostic first shipped in, and any later change to its category or severity. A new diagnostic goes into `AnalyzerReleases.Unshipped.md`. Changing a shipped diagnostic's severity or category, or removing it, has to be declared there under `### Changed Rules` or `### Removed Rules`, or the build fails. The same move covers `src/ZeroAlloc.StateMachine/PublicAPI.Unshipped.txt`: new public API goes there, and removing shipped API is declared with a `*REMOVED*` line.
+
+Nobody moves entries by hand. When release-please opens or updates the release PR, the `ship-release-tracking` job in `.github/workflows/release-please.yml` moves everything unshipped into the Shipped files on that branch, in a `chore: mark analyzer rules and public api shipped in <version>` commit. The `release-tracking` job in CI fails a release PR while anything is still unshipped. Both use the shared [`ship-release-tracking.py`](https://github.com/ZeroAlloc-Net/.github/blob/main/scripts/ship-release-tracking.py). **Before merging a release PR,** check that it has that commit. If it doesn't, run the script with the release version from the root of the release branch and push the result.
