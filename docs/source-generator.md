@@ -12,7 +12,7 @@ ZeroAlloc.StateMachine uses a Roslyn `IIncrementalGenerator` to emit a companion
 
 ## What triggers generation
 
-The generator activates on any `partial class` or `partial struct` decorated with `[StateMachine]`. It reads the `[Transition]` and `[Terminal]` attributes from the same type, validates the graph, and writes one output file per annotated type.
+The generator activates on any `partial class`, `partial struct`, `partial record` or `partial record struct` decorated with `[StateMachine]`, and on any `partial class` or `partial record` decorated with `[StateMachineGroup]`. It reads the `[Transition]` and `[Terminal]` attributes from the same type, validates the graph, and writes one output file per annotated type.
 
 ---
 
@@ -24,6 +24,7 @@ The generated members are written into the annotated type itself, the host. A ho
 - **nested in other types.** The generated file reopens every containing type as `partial`, outermost first, with its kind and type parameters, then the host. Containing types can be classes, structs, records, record structs, interfaces or ref structs.
 - **generic**, or nested in a generic type. The host is reopened with its type parameters, such as `partial class OrderMachine<TOrder>`, and refers to itself that way. Attribute type arguments cannot use type parameters, so the states and triggers are never generic.
 - **named with a keyword**, such as `@class`. The name is written as a verbatim identifier.
+- **a record or record struct.** It is reopened as `partial record` or `partial record struct`. A positional record or record struct, or a struct with a primary constructor, gets no generated parameterless constructor: its primary constructor sets the initial state, and `default` or `new M()` of such a struct starts in the state enum's zero value. A timed machine with a primary constructor needs another constructor that chains to it and calls `HookConstructor()`, see [ZSM0021](diagnostics/ZSM0021.md).
 
 ```csharp
 public partial class Orders<TKey>

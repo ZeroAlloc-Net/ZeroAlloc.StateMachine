@@ -111,8 +111,10 @@ internal static class StateMachineWriter
     {
         // A struct with field initializers must declare a constructor (CS8983), and only an
         // explicit parameterless one makes `new T()` run the initializers that set the initial
-        // state. Emit it unless the user already declared one.
-        if (!m.IsStruct || m.HasUserParameterlessCtor) return;
+        // state. Emit it unless the user already declared one. A primary constructor already
+        // satisfies CS8983 and runs the initializers, and any other constructor next to it has to
+        // chain to it with `this(...)` (CS8862), whose arguments only the user knows.
+        if (!m.IsStruct || m.HasUserParameterlessCtor || m.HasPrimaryCtor) return;
 
         sb.AppendLine($"    /// <summary>Creates the machine in its declared initial state.</summary>");
         sb.AppendLine($"    public {m.Declaration!.Name}()");
