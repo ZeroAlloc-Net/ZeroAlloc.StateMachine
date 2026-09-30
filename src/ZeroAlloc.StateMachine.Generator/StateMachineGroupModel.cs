@@ -4,6 +4,7 @@ namespace ZeroAlloc.StateMachine.Generator;
 internal sealed record StateMachineGroupModel(
     string? Namespace,
     string ClassName,
+    string HintName,
     EquatableArray<StateMachinePartModel> Parts,
     bool HasUserCtor,
     bool Diagram,

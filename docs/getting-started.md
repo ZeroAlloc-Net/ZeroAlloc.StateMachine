@@ -163,7 +163,7 @@ services.AddSingleton<OrderMachine>();
 
 ## What's generated
 
-The generator emits a single file named `{ClassName}.StateMachine.g.cs` in your project's intermediate output folder. You can inspect it in Visual Studio by expanding the **Analyzers** node in Solution Explorer, or via the **Go to Definition** command on any generated member.
+The generator emits one file per machine, named after its namespace, containing types and class, such as `MyApp.OrderMachine.g.cs`, or `MyApp.Device.Group.g.cs` for a `[StateMachineGroup]`. The file lands in your project's intermediate output folder when `EmitCompilerGeneratedFiles` is set. You can inspect it in Visual Studio by expanding the **Analyzers** node in Solution Explorer, or via the **Go to Definition** command on any generated member.
 
 See [Source Generator](source-generator.md) for the full annotated output.
 
