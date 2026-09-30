@@ -253,6 +253,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         var hasTimedInGroup = parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
         AnalyzeMissingHookConstructorInvocation(type, hasTimedInGroup, diagnostics);
+        AnalyzeTimedRecord(type, diagnostics);
     }
 
     // ZSM0014: [StateMachine] and [StateMachineGroup] on the same class, at the [StateMachine]
@@ -745,6 +746,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeCompositeStates(historyStates, terminalStates,
             stateTypeShort, triggerTypeFqn, triggerTypeShort, type, concurrent, diagnostics);
         AnalyzeTimedTransitions(stateTypeShort, type, concurrent, diagnostics);
+        AnalyzeTimedRecord(type, diagnostics);
         AnalyzeDisposeConflict(type, transitions, diagnostics);
         AnalyzeEmptyDiagramRequest(diagram, transitions, type, smAttr, diagnostics);
         AnalyzeGuardsOnConcurrentMachine(type, concurrent, diagnostics);
@@ -1153,6 +1155,32 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                     StateMachineDiagnostics.TimedTransitionRequiresConcurrent, location,
                     stateTypeShort, from, on, to, afterMs, type.Name));
             }
+        }
+    }
+
+    // ZSM0026: a record's compiler-generated copy constructor copies the timer fields, so a copy
+    // made with `with` shares the original's timers, whose callbacks fire on the original.
+    // Reported once, at the first positive AfterMs. A record struct never gets here with timers:
+    // AfterMs needs Concurrent = true, which a struct cannot have (ZSM0004, ZSM0012).
+    private static void AnalyzeTimedRecord(
+        INamedTypeSymbol type,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        if (!type.IsRecord || type.IsValueType) return;
+
+        foreach (var attr in type.GetAttributes())
+        {
+            if (!string.Equals(attr.AttributeClass?.MetadataName, TransitionAttributeMetadataName, StringComparison.Ordinal))
+                continue;
+            if (attr.NamedArguments
+                    .FirstOrDefault(kv => string.Equals(kv.Key, "AfterMs", StringComparison.Ordinal)).Value.Value is not int ms
+                || ms <= 0)
+                continue;
+
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.TimedRecordCopiesShareTimers,
+                GetNamedArgumentLocation(attr, "AfterMs", type), type.Name));
+            return;
         }
     }
 

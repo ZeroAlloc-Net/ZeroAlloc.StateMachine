@@ -309,8 +309,8 @@ public partial struct MyMachine { }
 public partial record struct MyMachine;
 ```
 
-A record machine copied with `with` gets its own state. On a timed record, the copy shares its
-timers with the original, so avoid `with` on a machine with `AfterMs` transitions, see [#162](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/162).
+A record machine copied with `with` gets its own state. A record with `AfterMs` transitions gets
+warning [ZSM0026](diagnostics/ZSM0026.md): the copy shares the original's timers.
 
 The machine or group can be nested in other types, and it can be generic. The generated members
 land on the type itself, with every containing type reopened as `partial`, so each containing type

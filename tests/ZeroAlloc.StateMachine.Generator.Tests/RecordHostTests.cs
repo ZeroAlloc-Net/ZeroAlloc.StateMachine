@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace ZeroAlloc.StateMachine.Generator.Tests;
 
 /// <summary>
@@ -101,7 +103,8 @@ public partial record M(int X)
 ");
 
         run.Errors.Should().BeEmpty();
-        run.GeneratorDiagnostics.Should().BeEmpty();
+        // No ZSM0021. The only diagnostic is ZSM0026, the warning every timed record gets.
+        run.GeneratorDiagnostics.Select(static d => d.Id).Should().Equal("ZSM0026");
     }
 
     [Fact]

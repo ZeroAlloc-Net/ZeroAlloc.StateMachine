@@ -24,7 +24,7 @@ The generated members are written into the annotated type itself, the host. A ho
 - **nested in other types.** The generated file reopens every containing type as `partial`, outermost first, with its kind and type parameters, then the host. Containing types can be classes, structs, records, record structs, interfaces or ref structs.
 - **generic**, or nested in a generic type. The host is reopened with its type parameters, such as `partial class OrderMachine<TOrder>`, and refers to itself that way. Attribute type arguments cannot use type parameters, so the states and triggers are never generic.
 - **named with a keyword**, such as `@class`. The name is written as a verbatim identifier.
-- **a record or record struct.** It is reopened as `partial record` or `partial record struct`. A positional record or record struct, or a struct with a primary constructor, gets no generated parameterless constructor: its primary constructor sets the initial state, and `default` or `new M()` of such a struct starts in the state enum's zero value. A timed machine with a primary constructor needs another constructor that chains to it and calls `HookConstructor()`, see [ZSM0021](diagnostics/ZSM0021.md).
+- **a record or record struct.** It is reopened as `partial record` or `partial record struct`. A positional record or record struct, or a struct with a primary constructor, gets no generated parameterless constructor: its primary constructor sets the initial state, and `default` or `new M()` of such a struct starts in the state enum's zero value. A timed machine with a primary constructor needs another constructor that chains to it and calls `HookConstructor()`, see [ZSM0021](diagnostics/ZSM0021.md). A record with timed transitions gets warning [ZSM0026](diagnostics/ZSM0026.md), because a `with` copy shares its timers.
 
 ```csharp
 public partial class Orders<TKey>
@@ -285,6 +285,7 @@ dotnet build
 | [ZSM0023](diagnostics/ZSM0023.md) | A nested machine or group has a containing type that is not `partial` |
 | [ZSM0024](diagnostics/ZSM0024.md) | A machine or group is `file`-local, or nested in a `file`-local type |
 | [ZSM0025](diagnostics/ZSM0025.md) | A host's file name differs only in case from another host's |
+| [ZSM0026](diagnostics/ZSM0026.md) | A `record` machine or group has timed transitions, whose timers a `with` copy shares |
 
 Each ID links to its own page, with its severity, examples and fixes.
 

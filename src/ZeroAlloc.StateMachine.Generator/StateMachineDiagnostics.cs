@@ -227,4 +227,13 @@ internal static class StateMachineDiagnostics
         defaultSeverity:    DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:        "Generated file names are compared ignoring case, so two hosts whose namespace, containing types and name differ only in case cannot both be generated. The host declared first, by file path and then position, is generated. Rename one of them.");
+
+    public static readonly DiagnosticDescriptor TimedRecordCopiesShareTimers = new(
+        id:                 "ZSM0026",
+        title:              "Copies of a timed record share its timers",
+        messageFormat:      "'{0}' is a record with timed transitions: a copy made with 'with' shares the original's timers, so disposing the copy stops the original's timers",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description:        "A record's compiler-generated copy constructor copies every field, including the timers of AfterMs transitions. A copy made with 'with' holds the same timers, whose callbacks fire on the original, and disposing the copy disposes them. Do not copy the machine with 'with', or declare it as a class.");
 }
