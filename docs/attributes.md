@@ -304,4 +304,21 @@ public partial class MyMachine { }
 public partial struct MyMachine { }
 ```
 
-Nested types and generic types are not currently supported.
+The machine or group can be nested in other types, and it can be generic. The generated members
+land on the type itself, with every containing type reopened as `partial`, so each containing type
+must be declared `partial`: otherwise the generator reports [ZSM0023](diagnostics/ZSM0023.md) and
+generates nothing for it. A `file`-local type cannot be extended from a generated file, so it is
+reported as [ZSM0024](diagnostics/ZSM0024.md). See
+[Where the Host Can Be Declared](source-generator.md#where-the-host-can-be-declared).
+
+```csharp
+public partial class Orders
+{
+    [StateMachine(InitialState = nameof(S.A))]
+    [Transition<S, T>(From = S.A, On = T.X, To = S.B)]
+    public partial class Machine<TOrder> { }
+}
+
+var machine = new Orders.Machine<Order>();
+machine.TryFire(T.X);
+```

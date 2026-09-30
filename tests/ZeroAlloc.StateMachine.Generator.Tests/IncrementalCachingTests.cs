@@ -15,6 +15,7 @@ public class IncrementalCachingTests
     // The generator's WithTrackingName values.
     private const string StateMachinesStep = "StateMachines";
     private const string StateMachineGroupsStep = "StateMachineGroups";
+    private const string CaseCollisionsStep = "CaseCollisions";
 
     private static readonly CSharpParseOptions ParseOptions =
         CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
@@ -119,13 +120,14 @@ public class IncrementalCachingTests
 
         Assert.True(result.TrackedSteps.ContainsKey(StateMachinesStep));
         Assert.True(result.TrackedSteps.ContainsKey(StateMachineGroupsStep));
+        Assert.True(result.TrackedSteps.ContainsKey(CaseCollisionsStep));
         Assert.NotEmpty(result.TrackedOutputSteps);
     }
 
     private static void AssertAllCached(GeneratorDriver driver)
     {
         var result = driver.GetRunResult().Results[0];
-        var steps = new[] { StateMachinesStep, StateMachineGroupsStep }
+        var steps = new[] { StateMachinesStep, StateMachineGroupsStep, CaseCollisionsStep }
             .SelectMany(name => result.TrackedSteps[name])
             .Concat(result.TrackedOutputSteps.SelectMany(static kv => kv.Value));
 

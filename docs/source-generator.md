@@ -16,6 +16,47 @@ The generator activates on any `partial class` or `partial struct` decorated wit
 
 ---
 
+## Where the host can be declared
+
+The generated members are written into the annotated type itself, the host. A host can be:
+
+- **at the top of a namespace, or in the global namespace.** The output below is what these get.
+- **nested in other types.** The generated file reopens every containing type as `partial`, outermost first, with its kind and type parameters, then the host. Containing types can be classes, structs, records, record structs, interfaces or ref structs.
+- **generic**, or nested in a generic type. The host is reopened with its type parameters, such as `partial class OrderMachine<TOrder>`, and refers to itself that way. Attribute type arguments cannot use type parameters, so the states and triggers are never generic.
+- **named with a keyword**, such as `@class`. The name is written as a verbatim identifier.
+
+```csharp
+public partial class Orders<TKey>
+{
+    [StateMachine(InitialState = nameof(State.Idle))]
+    [Transition<State, Trigger>(From = State.Idle, On = Trigger.Submit, To = State.Pending)]
+    internal partial class OrderMachine<TOrder> { }
+}
+```
+
+```csharp
+// MyApp.Orders`1+OrderMachine`1.g.cs
+namespace MyApp;
+
+partial class Orders<TKey>
+{
+partial class OrderMachine<TOrder>
+{
+    // ... the members described below
+}
+}
+```
+
+Three cases generate nothing for the host:
+
+| Case | Diagnostic |
+|------|------------|
+| A containing type is not `partial`, so it cannot be reopened | [ZSM0023](diagnostics/ZSM0023.md), warning |
+| The host or its outermost containing type is `file`-local, which a generated file can never extend | [ZSM0024](diagnostics/ZSM0024.md), error |
+| The host's file name differs only in case from an earlier host's, such as `App.Order` and `App.order` | [ZSM0025](diagnostics/ZSM0025.md), error on the later host |
+
+---
+
 ## Non-concurrent output
 
 Given this input:
@@ -240,6 +281,9 @@ dotnet build
 | [ZSM0020](diagnostics/ZSM0020.md) | `Diagram = true` on a class with no transitions |
 | [ZSM0021](diagnostics/ZSM0021.md) | A user-declared constructor on a machine with timed transitions does not call `HookConstructor()` |
 | [ZSM0022](diagnostics/ZSM0022.md) | `When = true` on a concurrent machine, where the guard is ignored |
+| [ZSM0023](diagnostics/ZSM0023.md) | A nested machine or group has a containing type that is not `partial` |
+| [ZSM0024](diagnostics/ZSM0024.md) | A machine or group is `file`-local, or nested in a `file`-local type |
+| [ZSM0025](diagnostics/ZSM0025.md) | A host's file name differs only in case from another host's |
 
 Each ID links to its own page, with its severity, examples and fixes.
 

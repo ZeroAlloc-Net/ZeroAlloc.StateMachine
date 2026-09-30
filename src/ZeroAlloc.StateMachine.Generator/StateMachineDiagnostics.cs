@@ -200,4 +200,31 @@ internal static class StateMachineDiagnostics
         defaultSeverity:    DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description:        "Concurrent machines, which includes every [StateMachinePart] of a [StateMachineGroup], commit transitions with a lock-free compare-and-swap. A guard checked before that swap can be invalidated by another thread before it lands, so the generator emits no guard stub and no when clause, and the transition always fires. Split the source state so that only the state in which the condition holds has the transition, check the condition before calling TryFire, or remove Concurrent = true and synchronise callers externally.");
+
+    public static readonly DiagnosticDescriptor ContainingTypeNotPartial = new(
+        id:                 "ZSM0023",
+        title:              "State machine nested in a containing type that is not partial",
+        messageFormat:      "'{0}' is not generated because its containing type '{1}' is not partial",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Warning,
+        isEnabledByDefault: true,
+        description:        "The generated members are written into the host inside partial declarations of every containing type, so each containing type must be partial. Make every containing type partial, or move the host to the top level of a namespace.");
+
+    public static readonly DiagnosticDescriptor FileLocalHost = new(
+        id:                 "ZSM0024",
+        title:              "File-local state machine",
+        messageFormat:      "'{0}' is not generated because {1}, and a generated file cannot extend a file-local type",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "A file-local type can only be declared in its own file, and generated code is always in another file. Remove the file modifier.");
+
+    public static readonly DiagnosticDescriptor HostNameDiffersOnlyInCase = new(
+        id:                 "ZSM0025",
+        title:              "State machine name differs only in case from another state machine",
+        messageFormat:      "'{0}' is not generated because its file name '{1}' differs only in case from that of '{2}'",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Error,
+        isEnabledByDefault: true,
+        description:        "Generated file names are compared ignoring case, so two hosts whose namespace, containing types and name differ only in case cannot both be generated. The host declared first, by file path and then position, is generated. Rename one of them.");
 }

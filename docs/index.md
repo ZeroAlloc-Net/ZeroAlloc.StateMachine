@@ -88,3 +88,6 @@ machine.Current;                 // Pending
 | [ZSM0020](diagnostics/ZSM0020.md) | Warning | `Diagram = true` on a class with no transitions |
 | [ZSM0021](diagnostics/ZSM0021.md) | Error | User constructor must call `HookConstructor()` |
 | [ZSM0022](diagnostics/ZSM0022.md) | Warning | `When = true` is ignored on a concurrent machine |
+| [ZSM0023](diagnostics/ZSM0023.md) | Warning | Containing type is not `partial` |
+| [ZSM0024](diagnostics/ZSM0024.md) | Error | File-local state machine |
+| [ZSM0025](diagnostics/ZSM0025.md) | Error | Name differs only in case from another state machine |

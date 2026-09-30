@@ -3,7 +3,11 @@ namespace ZeroAlloc.StateMachine.Generator;
 /// <summary>Immutable model of a [StateMachine] type, built by the generator parser.</summary>
 internal sealed record StateMachineModel(
     string? Namespace,
-    string ClassName,
+    // Null when the host cannot be generated into, as ZSM0023 and ZSM0024 report: then nothing
+    // is emitted for it, whatever its other diagnostics.
+    HostDeclaration? Declaration,
+    string DisplayName,       // e.g. "MyApp.Outer.OrderMachine", for diagnostics
+    LocationInfo? HostLocation, // the host's name, where diagnostics about the host itself go
     string HintName,          // the generated file's name, see HintNames.ForHost
     bool IsStruct,
     string InitialState,
