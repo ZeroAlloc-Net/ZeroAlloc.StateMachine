@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.6.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.1...v1.6.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* **generator:** accept records and record structs as state machine hosts ([#163](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/163)) ([b3c0122](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/b3c012262a282e8ec26a04bea3875949f3273d95)), closes [#161](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/161)
+* **generator:** generate nested, generic and keyword-named machines into the host ([daf5d8c](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/daf5d8c7a73579a657486681305e3b09e8d665bf))
+* **generator:** report machines whose names differ only in case instead of failing all of them ([daf5d8c](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/daf5d8c7a73579a657486681305e3b09e8d665bf))
+* **generator:** warn that copies of a timed record machine share its timers ([#165](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/165)) ([33dc666](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/33dc666e3ff36fc229328790a5dddfe10da081c6)), closes [#162](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/162)
+* name generated files after the host's namespace and containing types ([#158](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/158)) ([9dcae66](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/9dcae669b2646f80fc7c7422b21e5841f066273c)), closes [#156](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/156)
+
 ## [1.6.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.0...v1.6.1) (2026-09-28)
 
 
