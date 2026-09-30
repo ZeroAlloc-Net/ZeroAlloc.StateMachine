@@ -52,10 +52,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
                 return;
 
             var source = StateMachineGroupWriter.Write(model);
-            var hintName = model.Namespace is null
-                ? $"{model.ClassName}.Group.g.cs"
-                : $"{model.Namespace}_{model.ClassName}.Group.g.cs";
-            ctx.AddSource(hintName, source);
+            ctx.AddSource(model.HintName, source);
         });
     }
 
@@ -86,10 +83,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         };
 
         var source = StateMachineWriter.Write(model, resolver);
-        var hintName = model.Namespace is null
-            ? $"{model.ClassName}.g.cs"
-            : $"{model.Namespace}_{model.ClassName}.g.cs";
-        ctx.AddSource(hintName, source);
+        ctx.AddSource(model.HintName, source);
     }
 
     private static StateMachineGroupModel? ParseGroup(GeneratorAttributeSyntaxContext ctx, CancellationToken ct)
@@ -113,7 +107,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeGroupDiagnostics(type, groupAttr, parts, diagram, diagnostics);
 
         return new StateMachineGroupModel(
-            ns, type.Name, parts,
+            ns, type.Name, HintNames.ForHost(type, ".Group.g.cs"), parts,
             HasUserCtor: hasUserCtor,
             Diagram: diagram,
             diagnostics.ToImmutable());
@@ -376,7 +370,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty);
 
         return new StateMachineModel(
-            ns, type.Name, isStruct,
+            ns, type.Name, HintNames.ForHost(type, ".g.cs"), isStruct,
             initialState, concurrent,
             stateTypeFqn, stateTypeShort!,
             triggerTypeFqn, triggerTypeShort!,
@@ -437,7 +431,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             : ImmutableArray<SubMachineModel>.Empty;
 
         return new StateMachineModel(
-            ns, type.Name, isStruct,
+            ns, type.Name, HintNames.ForHost(type, ".g.cs"), isStruct,
             initialState, concurrent,
             stateTypeFqn ?? string.Empty,
             stateTypeShort ?? string.Empty,

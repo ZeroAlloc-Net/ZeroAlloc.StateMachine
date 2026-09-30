@@ -4,6 +4,7 @@ namespace ZeroAlloc.StateMachine.Generator;
 internal sealed record StateMachineModel(
     string? Namespace,
     string ClassName,
+    string HintName,          // the generated file's name, see HintNames.ForHost
     bool IsStruct,
     string InitialState,
     bool Concurrent,
