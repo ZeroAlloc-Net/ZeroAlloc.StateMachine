@@ -19,9 +19,12 @@ internal static class StateMachineWriter
             sb.AppendLine();
         }
 
-        var keyword = model.IsStruct ? "partial struct" : "partial class";
+        // Called only for a model that can be generated into, see GeneratedHost.IsGenerated.
+        var host = model.Declaration!;
+        host.Open(sb);
+
         var disposableSuffix = HasAnyTimedEdge(model) ? " : System.IDisposable" : "";
-        sb.AppendLine($"{keyword} {model.ClassName}{disposableSuffix}");
+        sb.AppendLine($"{host.Keyword} {host.SelfType}{disposableSuffix}");
         sb.AppendLine("{");
 
         if (model.Concurrent)
@@ -32,6 +35,7 @@ internal static class StateMachineWriter
         WriteMermaidDiagram(sb, model, resolveSubMachine ?? (static _ => null));
 
         sb.AppendLine("}");
+        host.Close(sb);
         return sb.ToString();
     }
 
@@ -111,7 +115,7 @@ internal static class StateMachineWriter
         if (!m.IsStruct || m.HasUserParameterlessCtor) return;
 
         sb.AppendLine($"    /// <summary>Creates the machine in its declared initial state.</summary>");
-        sb.AppendLine($"    public {m.ClassName}()");
+        sb.AppendLine($"    public {m.Declaration!.Name}()");
         sb.AppendLine($"    {{");
         sb.AppendLine($"    }}");
         sb.AppendLine();
@@ -537,7 +541,7 @@ internal static class StateMachineWriter
             sb.AppendLine($"{indent}    if (__t is null)");
             sb.AppendLine($"{indent}    {{");
             sb.AppendLine($"{indent}        var __new = new System.Threading.Timer(");
-            sb.AppendLine($"{indent}            static s => (({m.ClassName})s!).{tryFireMethod}({triggerFqn}.{t.On}),");
+            sb.AppendLine($"{indent}            static s => (({m.Declaration!.SelfType})s!).{tryFireMethod}({triggerFqn}.{t.On}),");
             sb.AppendLine($"{indent}            this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
             sb.AppendLine($"{indent}        __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
             sb.AppendLine($"{indent}        if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
@@ -589,7 +593,7 @@ internal static class StateMachineWriter
             sb.AppendLine($"            if (__t is null)");
             sb.AppendLine($"            {{");
             sb.AppendLine($"                var __new = new System.Threading.Timer(");
-            sb.AppendLine($"                    static s => (({m.ClassName})s!).TryFire({m.TriggerTypeFqn}.{t.On}),");
+            sb.AppendLine($"                    static s => (({m.Declaration!.SelfType})s!).TryFire({m.TriggerTypeFqn}.{t.On}),");
             sb.AppendLine($"                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
             sb.AppendLine($"                __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
             sb.AppendLine($"                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
@@ -635,7 +639,7 @@ internal static class StateMachineWriter
         {
             sb.AppendLine();
             sb.AppendLine($"    /// <summary>Default generator-emitted constructor; calls HookConstructor() to arm initial-state timers.</summary>");
-            sb.AppendLine($"    public {m.ClassName}()");
+            sb.AppendLine($"    public {m.Declaration!.Name}()");
             sb.AppendLine($"    {{");
             sb.AppendLine($"        HookConstructor();");
             sb.AppendLine($"    }}");

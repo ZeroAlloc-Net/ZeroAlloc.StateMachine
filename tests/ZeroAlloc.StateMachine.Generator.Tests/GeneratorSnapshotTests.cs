@@ -118,4 +118,32 @@ public class GeneratorSnapshotTests
 
         TestHelper.Verify<StateMachineGenerator>(source);
     }
+
+    [Fact]
+    public void NestedGenericMachine_IsGeneratedIntoItsHost()
+    {
+        var source = """
+            using ZeroAlloc.StateMachine;
+
+            namespace MyApp;
+
+            public enum State   { Idle, Pending, Done }
+            public enum Trigger { Submit, Complete, Expire }
+
+            public partial record struct Orders<TKey> where TKey : notnull
+            {
+                public partial class Handlers<@event>
+                {
+                    [StateMachine(InitialState = nameof(State.Idle), Concurrent = true)]
+                    [Transition<State, Trigger>(From = State.Idle,    On = Trigger.Submit,   To = State.Pending)]
+                    [Transition<State, Trigger>(From = State.Pending, On = Trigger.Complete, To = State.Done)]
+                    [Transition<State, Trigger>(From = State.Pending, On = Trigger.Expire,   To = State.Idle, AfterMs = 500)]
+                    [Terminal<State>(State = State.Done)]
+                    internal partial class OrderMachine<TOrder> where TOrder : class { }
+                }
+            }
+            """;
+
+        TestHelper.Verify<StateMachineGenerator>(source);
+    }
 }

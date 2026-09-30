@@ -20,7 +20,8 @@ internal static class HintNames
     /// <remarks>
     /// Nesting is written with <c>+</c> rather than a dot, so a type nested in <c>App.Outer</c>
     /// and a type at the top of namespace <c>App.Outer</c> never share a name. Roslyn compares
-    /// hint names ignoring case, so hosts whose names differ only in case still collide.
+    /// hint names ignoring case, so hosts whose names differ only in case still collide: the
+    /// later one is not generated and gets ZSM0025, see <see cref="CaseCollisions"/>.
     /// </remarks>
     public static string ForHost(INamedTypeSymbol host, string suffix)
     {

@@ -32,8 +32,6 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .Select(static (m, _) => m!)
             .WithTrackingName("StateMachines");
 
-        context.RegisterSourceOutput(models, static (ctx, model) => EmitStateMachine(ctx, model));
-
         var groupModels = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 StateMachineGroupAttributeFqn,
@@ -43,12 +41,40 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .Select(static (m, _) => m!)
             .WithTrackingName("StateMachineGroups");
 
-        context.RegisterSourceOutput(groupModels, static (ctx, model) =>
+        // ZSM0025, the one check that needs every host at once. Only the hint names that must
+        // not be added reach the per-host outputs, so an edit that leaves them equal keeps every
+        // other host's output cached.
+        var machineHosts = models
+            .Select(static (m, _) => GeneratedHost.For(m))
+            .Where(static h => h is not null)
+            .Select(static (h, _) => h!);
+        var groupHosts = groupModels
+            .Select(static (m, _) => GeneratedHost.For(m))
+            .Where(static h => h is not null)
+            .Select(static (h, _) => h!);
+        var collisions = machineHosts.Collect()
+            .Combine(groupHosts.Collect())
+            .Select(static (pair, _) => CaseCollisions.Find(pair.Left.AddRange(pair.Right)))
+            .WithTrackingName("CaseCollisions");
+
+        context.RegisterSourceOutput(collisions, static (ctx, found) =>
         {
+            foreach (var diag in found.Diagnostics)
+                ctx.ReportDiagnostic(diag.ToDiagnostic());
+        });
+
+        var skippedHintNames = collisions.Select(static (found, _) => found.SkippedHintNames);
+
+        context.RegisterSourceOutput(models.Combine(skippedHintNames),
+            static (ctx, pair) => EmitStateMachine(ctx, pair.Left, pair.Right));
+
+        context.RegisterSourceOutput(groupModels.Combine(skippedHintNames), static (ctx, pair) =>
+        {
+            var (model, skipped) = pair;
             foreach (var diag in model.Diagnostics)
                 ctx.ReportDiagnostic(diag.ToDiagnostic());
 
-            if (model.Diagnostics.Any(static d => d.IsError))
+            if (!GeneratedHost.IsGenerated(model) || skipped.Any(h => string.Equals(h, model.HintName, StringComparison.Ordinal)))
                 return;
 
             var source = StateMachineGroupWriter.Write(model);
@@ -56,18 +82,15 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         });
     }
 
-    private static void EmitStateMachine(SourceProductionContext ctx, StateMachineModel model)
+    private static void EmitStateMachine(SourceProductionContext ctx, StateMachineModel model, EquatableArray<string> skipped)
     {
         foreach (var diag in model.Diagnostics)
             ctx.ReportDiagnostic(diag.ToDiagnostic());
 
-        // Do not emit source if any diagnostic is a hard error — the model is invalid
-        if (model.Diagnostics.Any(static d => d.IsError))
-            return;
-
-        // Skip emit when there are no transitions — the model was only built so that
-        // AnalyzeDiagnostics could fire ZSM0020 (Diagram = true on an empty machine).
-        if (model.Transitions.IsEmpty)
+        // No source for a host that cannot be generated into, for an invalid model, for a model
+        // built only so that AnalyzeDiagnostics could fire ZSM0020 (Diagram = true on an empty
+        // machine), or for a host whose file name ZSM0025 reported.
+        if (!GeneratedHost.IsGenerated(model) || skipped.Any(h => string.Equals(h, model.HintName, StringComparison.Ordinal)))
             return;
 
         // Sub-machines were resolved while parsing, so this step needs no compilation: combined
@@ -91,9 +114,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         if (ctx.TargetSymbol is not INamedTypeSymbol type) return null;
         ct.ThrowIfCancellationRequested();
 
-        var ns = type.ContainingNamespace.IsGlobalNamespace
-                 ? null
-                 : type.ContainingNamespace.ToDisplayString();
+        var ns = NamespaceOf(type);
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
 
         var groupAttr = ctx.Attributes[0];
@@ -102,12 +123,20 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         var parts = CollectGroupParts(type);
         var hasUserCtor = type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared);
+        var hostLocation = HostLocation(ctx.TargetNode);
 
         ct.ThrowIfCancellationRequested();
-        AnalyzeGroupDiagnostics(type, groupAttr, parts, diagram, diagnostics);
+        // ZSM0023 and ZSM0024 stand alone: nothing is generated, so nothing else is analysed.
+        var hostDiagnostic = HostDiagnostic(type, hostLocation);
+        if (hostDiagnostic is not null)
+            diagnostics.Add(hostDiagnostic);
+        else
+            AnalyzeGroupDiagnostics(type, groupAttr, parts, diagram, diagnostics);
+        var declaration = hostDiagnostic is null ? HostDeclaration.For(type) : null;
 
         return new StateMachineGroupModel(
-            ns, type.Name, HintNames.ForHost(type, ".Group.g.cs"), parts,
+            ns, declaration, type.ToDisplayString(), LocationInfo.From(hostLocation),
+            HintNames.ForHost(type, ".Group.g.cs"), parts,
             HasUserCtor: hasUserCtor,
             Diagram: diagram,
             diagnostics.ToImmutable());
@@ -328,6 +357,54 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
     }
 
+    private static (string InitialState, bool Concurrent, bool Diagram) ReadStateMachineAttribute(AttributeData smAttr)
+    {
+        var initialState = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
+        var concurrent = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
+        var diagram = smAttr.NamedArguments
+            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+        return (initialState, concurrent, diagram);
+    }
+
+    private static string? NamespaceOf(INamedTypeSymbol type) =>
+        type.ContainingNamespace.IsGlobalNamespace ? null : type.ContainingNamespace.ToDisplayString();
+
+    private static (bool Any, bool Parameterless) UserConstructors(INamedTypeSymbol type) =>
+        (type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared),
+         type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty));
+
+    /// <summary>The name of the host declaration the attribute is on.</summary>
+    private static Location HostLocation(SyntaxNode targetNode) =>
+        targetNode is BaseTypeDeclarationSyntax declaration
+            ? declaration.Identifier.GetLocation()
+            : targetNode.GetLocation();
+
+    /// <summary>
+    /// ZSM0024 when the host or a containing type is file-local, else ZSM0023 when a containing
+    /// type is not partial, else null. The generated code reopens the host and every containing
+    /// type as partial declarations in another file, which either one prevents.
+    /// </summary>
+    private static DiagnosticInfo? HostDiagnostic(INamedTypeSymbol type, Location location)
+    {
+        if (HostDeclaration.FileLocalType(type) is { } fileLocal)
+        {
+            var reason = SymbolEqualityComparer.Default.Equals(fileLocal, type)
+                ? "it is file-local"
+                : $"its containing type '{fileLocal.ToDisplayString()}' is file-local";
+            return DiagnosticInfo.Create(StateMachineDiagnostics.FileLocalHost, location, type.ToDisplayString(), reason);
+        }
+
+        if (HostDeclaration.FirstNonPartialContainingType(type) is { } notPartial)
+        {
+            return DiagnosticInfo.Create(StateMachineDiagnostics.ContainingTypeNotPartial, location,
+                type.ToDisplayString(), notPartial.ToDisplayString());
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Build a <see cref="StateMachineModel"/> from a raw <see cref="INamedTypeSymbol"/> without
     /// going through <see cref="GeneratorAttributeSyntaxContext"/>. Used by the Mermaid diagram
@@ -345,12 +422,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .FirstOrDefault(a => string.Equals(a.AttributeClass?.MetadataName, StateMachineAttributeMetadataName, StringComparison.Ordinal));
         if (smAttr is null) return null;
 
-        var initialState = smAttr.NamedArguments
-            .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
-        var concurrent = smAttr.NamedArguments
-            .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
-        var diagram = smAttr.NamedArguments
-            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+        var (initialState, concurrent, diagram) = ReadStateMachineAttribute(smAttr);
 
         var (transitions, terminalStates, compositeStates, historyStates,
              stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
@@ -360,17 +432,16 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         if (stateTypeFqn is null || triggerTypeFqn is null) return null;
         if (string.IsNullOrEmpty(initialState)) return null;
 
-        var ns = type.ContainingNamespace.IsGlobalNamespace
-                 ? null
-                 : type.ContainingNamespace.ToDisplayString();
+        var ns = NamespaceOf(type);
         var isStruct = type.TypeKind == TypeKind.Struct;
-        var hasUserCtor = type.InstanceConstructors
-            .Any(c => !c.IsImplicitlyDeclared);
-        var hasUserParameterlessCtor = type.InstanceConstructors
-            .Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty);
+        var (hasUserCtor, hasUserParameterlessCtor) = UserConstructors(type);
 
         return new StateMachineModel(
-            ns, type.Name, HintNames.ForHost(type, ".g.cs"), isStruct,
+            // No location: this model only feeds the diagram and reports nothing, and a syntax
+            // tree here would make the parent's model differ after any edit to the sub-machine's
+            // file.
+            ns, HostDeclaration.For(type), type.ToDisplayString(), HostLocation: null,
+            HintNames.ForHost(type, ".g.cs"), isStruct,
             initialState, concurrent,
             stateTypeFqn, stateTypeShort!,
             triggerTypeFqn, triggerTypeShort!,
@@ -390,12 +461,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         // [StateMachine] — the primary matched attribute
         var smAttr = ctx.Attributes[0];
-        var initialState = smAttr.NamedArguments
-            .FirstOrDefault(kv => string.Equals(kv.Key, "InitialState", StringComparison.Ordinal)).Value.Value as string ?? string.Empty;
-        var concurrent = smAttr.NamedArguments
-            .FirstOrDefault(kv => string.Equals(kv.Key, "Concurrent", StringComparison.Ordinal)).Value.Value is true;
-        var diagram = smAttr.NamedArguments
-            .FirstOrDefault(kv => string.Equals(kv.Key, "Diagram", StringComparison.Ordinal)).Value.Value is true;
+        var (initialState, concurrent, diagram) = ReadStateMachineAttribute(smAttr);
 
         var (transitions, terminalStates, compositeStates, historyStates,
              stateTypeFqn, stateTypeShort, triggerTypeFqn, triggerTypeShort)
@@ -408,30 +474,31 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         if (!transitions.IsEmpty && (stateTypeFqn is null || triggerTypeFqn is null)) return null;
         if (string.IsNullOrEmpty(initialState)) return null;
 
-        var ns       = type.ContainingNamespace.IsGlobalNamespace
-                     ? null
-                     : type.ContainingNamespace.ToDisplayString();
+        var ns       = NamespaceOf(type);
         var isStruct = type.TypeKind == TypeKind.Struct;
-        var hasUserCtor = type.InstanceConstructors
-            .Any(c => !c.IsImplicitlyDeclared);
-        var hasUserParameterlessCtor = type.InstanceConstructors
-            .Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty);
+        var (hasUserCtor, hasUserParameterlessCtor) = UserConstructors(type);
         var diagnostics = ImmutableArray.CreateBuilder<DiagnosticInfo>();
+        var hostLocation = HostLocation(ctx.TargetNode);
 
         ct.ThrowIfCancellationRequested();
-        AnalyzeDiagnostics(initialState, transitions, terminalStates,
-            historyStates,
-            stateTypeShort ?? string.Empty,
-            triggerTypeFqn ?? string.Empty,
-            triggerTypeShort ?? string.Empty,
-            type, smAttr, isStruct, concurrent, diagram, diagnostics);
 
-        var subMachines = diagram && !compositeStates.IsEmpty
+        // ZSM0023 and ZSM0024 stand alone: nothing is generated, so nothing else is analysed.
+        var hostDiagnostic = HostDiagnostic(type, hostLocation);
+        if (hostDiagnostic is not null)
+            diagnostics.Add(hostDiagnostic);
+        else
+            AnalyzeDiagnostics(initialState, transitions, terminalStates, historyStates,
+                stateTypeShort ?? string.Empty, triggerTypeFqn ?? string.Empty, triggerTypeShort ?? string.Empty,
+                type, smAttr, isStruct, concurrent, diagram, diagnostics);
+
+        var subMachines = hostDiagnostic is null && diagram && !compositeStates.IsEmpty
             ? CollectSubMachines(type)
             : ImmutableArray<SubMachineModel>.Empty;
 
         return new StateMachineModel(
-            ns, type.Name, HintNames.ForHost(type, ".g.cs"), isStruct,
+            ns, hostDiagnostic is null ? HostDeclaration.For(type) : null,
+            type.ToDisplayString(), LocationInfo.From(hostLocation),
+            HintNames.ForHost(type, ".g.cs"), isStruct,
             initialState, concurrent,
             stateTypeFqn ?? string.Empty,
             stateTypeShort ?? string.Empty,

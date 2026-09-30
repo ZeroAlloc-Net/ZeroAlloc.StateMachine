@@ -18,14 +18,18 @@ internal static class StateMachineGroupWriter
             sb.AppendLine();
         }
 
+        // Called only for a model that can be generated into, see GeneratedHost.IsGenerated.
+        var host = m.Declaration!;
+        host.Open(sb);
+
         var hasAnyTimer = m.Parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
         var disposableSuffix = hasAnyTimer ? " : System.IDisposable" : "";
-        sb.AppendLine($"partial class {m.ClassName}{disposableSuffix}");
+        sb.AppendLine($"{host.Keyword} {host.SelfType}{disposableSuffix}");
         sb.AppendLine("{");
 
         foreach (var p in m.Parts)
         {
-            WritePartBody(sb, m.ClassName, p);
+            WritePartBody(sb, host.SelfType, p);
             sb.AppendLine();
         }
 
@@ -43,16 +47,17 @@ internal static class StateMachineGroupWriter
         }
 
         sb.AppendLine("}");
+        host.Close(sb);
         return sb.ToString();
     }
 
-    private static void WritePartBody(StringBuilder sb, string className, StateMachinePartModel p)
+    private static void WritePartBody(StringBuilder sb, string selfType, StateMachinePartModel p)
     {
         WritePartFields(sb, p);
         WritePartCurrentProperty(sb, p);
-        WritePartTryFire(sb, className, p);
+        WritePartTryFire(sb, selfType, p);
         WritePartHooks(sb, p);
-        WritePartArmInitialStateTimers(sb, className, p);
+        WritePartArmInitialStateTimers(sb, selfType, p);
     }
 
     private static void WritePartFields(StringBuilder sb, StateMachinePartModel p)
@@ -74,7 +79,7 @@ internal static class StateMachineGroupWriter
         sb.AppendLine();
     }
 
-    private static void WritePartTryFire(StringBuilder sb, string className, StateMachinePartModel p)
+    private static void WritePartTryFire(StringBuilder sb, string selfType, StateMachinePartModel p)
     {
         var st = p.StateTypeFqn;
         var tr = p.TriggerTypeFqn;
@@ -100,7 +105,7 @@ internal static class StateMachineGroupWriter
         sb.AppendLine($"                OnExit{p.Name}(current, trigger);");
         sb.AppendLine($"                OnEnter{p.Name}(next.Value, current);");
         WritePartTimerDisarmInline(sb, p);
-        WritePartTimerArmInline(sb, p, className);
+        WritePartTimerArmInline(sb, p, selfType);
         sb.AppendLine($"                return true;");
         sb.AppendLine($"            }}");
         sb.AppendLine($"        }}");
@@ -119,7 +124,7 @@ internal static class StateMachineGroupWriter
         }
     }
 
-    private static void WritePartTimerArmInline(StringBuilder sb, StateMachinePartModel p, string className)
+    private static void WritePartTimerArmInline(StringBuilder sb, StateMachinePartModel p, string selfType)
     {
         var st = p.StateTypeFqn;
         var tr = p.TriggerTypeFqn;
@@ -133,7 +138,7 @@ internal static class StateMachineGroupWriter
             sb.AppendLine($"                    if (__t is null)");
             sb.AppendLine($"                    {{");
             sb.AppendLine($"                        var __new = new System.Threading.Timer(");
-            sb.AppendLine($"                            static s => (({className})s!).TryFire{p.Name}({tr}.{t.On}),");
+            sb.AppendLine($"                            static s => (({selfType})s!).TryFire{p.Name}({tr}.{t.On}),");
             sb.AppendLine($"                            this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
             sb.AppendLine($"                        __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
             sb.AppendLine($"                        if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
@@ -189,7 +194,7 @@ internal static class StateMachineGroupWriter
         }
     }
 
-    private static void WritePartArmInitialStateTimers(StringBuilder sb, string className, StateMachinePartModel p)
+    private static void WritePartArmInitialStateTimers(StringBuilder sb, string selfType, StateMachinePartModel p)
     {
         var hasTimed = p.Transitions.Any(static t => t.AfterMs > 0);
         if (!hasTimed) return;
@@ -211,7 +216,7 @@ internal static class StateMachineGroupWriter
             sb.AppendLine($"            if (__t is null)");
             sb.AppendLine($"            {{");
             sb.AppendLine($"                var __new = new System.Threading.Timer(");
-            sb.AppendLine($"                    static s => (({className})s!).TryFire{p.Name}({tr}.{t.On}),");
+            sb.AppendLine($"                    static s => (({selfType})s!).TryFire{p.Name}({tr}.{t.On}),");
             sb.AppendLine($"                    this, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
             sb.AppendLine($"                __t = System.Threading.Interlocked.CompareExchange(ref {field}, __new, null) ?? __new;");
             sb.AppendLine($"                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
@@ -241,7 +246,7 @@ internal static class StateMachineGroupWriter
         if (!m.HasUserCtor)
         {
             sb.AppendLine();
-            sb.AppendLine($"    public {m.ClassName}()");
+            sb.AppendLine($"    public {m.Declaration!.Name}()");
             sb.AppendLine($"    {{");
             sb.AppendLine($"        HookConstructor();");
             sb.AppendLine($"    }}");

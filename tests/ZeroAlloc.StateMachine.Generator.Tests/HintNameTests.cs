@@ -1,8 +1,3 @@
-using System;
-using System.Linq;
-using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-
 namespace ZeroAlloc.StateMachine.Generator.Tests;
 
 /// <summary>
@@ -61,7 +56,7 @@ namespace A {{ using Shared; {Group} public partial class B_C {{ }} }}
     }
 
     [Fact]
-    public void NestedMachines_WithTheSameName_GetDistinctHintNames()
+    public void NestedMachines_WithTheSameName_GetDistinctHintNames_AndCompile()
     {
         var source = $@"
 using ZeroAlloc.StateMachine;
@@ -70,11 +65,14 @@ namespace N;
 public partial class Outer1 {{ {Machine} public partial class M {{ }} }}
 public partial class Outer2 {{ {Machine} public partial class M {{ }} }}
 ";
-        Run(source).HintNames.Should().BeEquivalentTo("N.Outer1+M.g.cs", "N.Outer2+M.g.cs");
+        var run = Run(source);
+
+        run.HintNames.Should().BeEquivalentTo("N.Outer1+M.g.cs", "N.Outer2+M.g.cs");
+        run.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void NestedGroups_WithTheSameName_GetDistinctHintNames()
+    public void NestedGroups_WithTheSameName_GetDistinctHintNames_AndCompile()
     {
         var source = $@"
 using ZeroAlloc.StateMachine;
@@ -83,11 +81,14 @@ namespace N;
 public partial class Outer1 {{ {Group} public partial class G {{ }} }}
 public partial class Outer2 {{ {Group} public partial class G {{ }} }}
 ";
-        Run(source).HintNames.Should().BeEquivalentTo("N.Outer1+G.Group.g.cs", "N.Outer2+G.Group.g.cs");
+        var run = Run(source);
+
+        run.HintNames.Should().BeEquivalentTo("N.Outer1+G.Group.g.cs", "N.Outer2+G.Group.g.cs");
+        run.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void GenericMachines_CarryTheirArity()
+    public void GenericMachines_CarryTheirArity_AndCompile()
     {
         var source = $@"
 using ZeroAlloc.StateMachine;
@@ -97,11 +98,14 @@ namespace N;
 {Machine} public partial class M<TX> {{ }}
 public partial class Outer<TY> {{ {Machine} public partial class M {{ }} }}
 ";
-        Run(source).HintNames.Should().BeEquivalentTo("N.M.g.cs", "N.M`1.g.cs", "N.Outer`1+M.g.cs");
+        var run = Run(source);
+
+        run.HintNames.Should().BeEquivalentTo("N.M.g.cs", "N.M`1.g.cs", "N.Outer`1+M.g.cs");
+        run.Errors.Should().BeEmpty();
     }
 
     [Fact]
-    public void GenericGroups_CarryTheirArity()
+    public void GenericGroups_CarryTheirArity_AndCompile()
     {
         var source = $@"
 using ZeroAlloc.StateMachine;
@@ -110,7 +114,10 @@ namespace N;
 {Group} public partial class G {{ }}
 {Group} public partial class G<TX> {{ }}
 ";
-        Run(source).HintNames.Should().BeEquivalentTo("N.G.Group.g.cs", "N.G`1.Group.g.cs");
+        var run = Run(source);
+
+        run.HintNames.Should().BeEquivalentTo("N.G.Group.g.cs", "N.G`1.Group.g.cs");
+        run.Errors.Should().BeEmpty();
     }
 
     [Fact]
@@ -161,33 +168,5 @@ namespace @event.Café;
         HintNames.Sanitize(new string(new[] { 'x', '\uDC00' })).Should().Be("x-uDC00");
     }
 
-    private static (string[] HintNames, Diagnostic[] Errors) Run(string source)
-    {
-        var parseOptions = CSharpParseOptions.Default.WithLanguageVersion(LanguageVersion.Latest);
-        var references = AppDomain.CurrentDomain.GetAssemblies()
-            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
-            .Select(a => MetadataReference.CreateFromFile(a.Location))
-            .Cast<MetadataReference>()
-            .Append(MetadataReference.CreateFromFile(typeof(StateMachineAttribute).Assembly.Location))
-            .ToList();
-        var compilation = CSharpCompilation.Create(
-            "Tests",
-            new[] { CSharpSyntaxTree.ParseText(source, parseOptions) },
-            references,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary));
-
-        var run = CSharpGeneratorDriver.Create(new StateMachineGenerator())
-            .WithUpdatedParseOptions(parseOptions)
-            .RunGenerators(compilation)
-            .GetRunResult();
-
-        run.Results.Should().HaveCount(1);
-        var result = run.Results[0];
-        result.Exception.Should().BeNull();
-        var errors = run.Diagnostics
-            .Concat(compilation.AddSyntaxTrees(run.GeneratedTrees).GetDiagnostics())
-            .Where(d => d.Severity == DiagnosticSeverity.Error)
-            .ToArray();
-        return (result.GeneratedSources.Select(s => s.HintName).ToArray(), errors);
-    }
+    private static GeneratorRunner.Result Run(string source) => GeneratorRunner.Run(source);
 }
