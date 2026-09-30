@@ -91,3 +91,4 @@ machine.Current;                 // Pending
 | [ZSM0023](diagnostics/ZSM0023.md) | Warning | Containing type is not `partial` |
 | [ZSM0024](diagnostics/ZSM0024.md) | Error | File-local state machine |
 | [ZSM0025](diagnostics/ZSM0025.md) | Error | Name differs only in case from another state machine |
+| [ZSM0026](diagnostics/ZSM0026.md) | Warning | Copies of a timed record share its timers |
