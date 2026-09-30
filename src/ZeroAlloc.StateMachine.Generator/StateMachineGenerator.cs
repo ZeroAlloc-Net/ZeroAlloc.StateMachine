@@ -26,7 +26,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             .ForAttributeWithMetadataName(
                 StateMachineAttributeFqn,
                 predicate: static (node, _) =>
-                    node is ClassDeclarationSyntax or StructDeclarationSyntax,
+                    node is ClassDeclarationSyntax or StructDeclarationSyntax or RecordDeclarationSyntax,
                 transform: static (ctx, ct) => Parse(ctx, ct))
             .Where(static m => m is not null)
             .Select(static (m, _) => m!)
@@ -35,7 +35,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         var groupModels = context.SyntaxProvider
             .ForAttributeWithMetadataName(
                 StateMachineGroupAttributeFqn,
-                predicate: static (node, _) => node is ClassDeclarationSyntax,
+                predicate: static (node, _) => node is ClassDeclarationSyntax or RecordDeclarationSyntax,
                 transform: static (ctx, ct) => ParseGroup(ctx, ct))
             .Where(static m => m is not null)
             .Select(static (m, _) => m!)
@@ -371,6 +371,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
     private static string? NamespaceOf(INamedTypeSymbol type) =>
         type.ContainingNamespace.IsGlobalNamespace ? null : type.ContainingNamespace.ToDisplayString();
 
+    private static bool HasPrimaryConstructor(INamedTypeSymbol type) =>
+        type.DeclaringSyntaxReferences.Any(static r => r.GetSyntax() is TypeDeclarationSyntax { ParameterList: not null });
+
     private static (bool Any, bool Parameterless) UserConstructors(INamedTypeSymbol type) =>
         (type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared),
          type.InstanceConstructors.Any(c => !c.IsImplicitlyDeclared && c.Parameters.IsEmpty));
@@ -449,6 +452,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             compositeStates, historyStates,
             HasUserCtor: hasUserCtor,
             HasUserParameterlessCtor: hasUserParameterlessCtor,
+            HasPrimaryCtor: HasPrimaryConstructor(type),
             Diagram: diagram,
             SubMachines: EquatableArray<SubMachineModel>.Empty,
             Diagnostics: EquatableArray<DiagnosticInfo>.Empty);
@@ -508,6 +512,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             compositeStates, historyStates,
             HasUserCtor: hasUserCtor,
             HasUserParameterlessCtor: hasUserParameterlessCtor,
+            HasPrimaryCtor: HasPrimaryConstructor(type),
             Diagram: diagram,
             SubMachines: subMachines,
             Diagnostics: diagnostics.ToImmutable());

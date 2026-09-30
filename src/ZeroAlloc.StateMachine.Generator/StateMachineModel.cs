@@ -22,6 +22,7 @@ internal sealed record StateMachineModel(
     EquatableArray<HistoryStateModel> HistoryStates,
     bool HasUserCtor,
     bool HasUserParameterlessCtor,
+    bool HasPrimaryCtor,       // declared with a parameter list, as a positional record or `struct M(int x)`
     bool Diagram,
     EquatableArray<SubMachineModel> SubMachines,  // every sub-machine the diagram expands, transitively
     EquatableArray<DiagnosticInfo> Diagnostics

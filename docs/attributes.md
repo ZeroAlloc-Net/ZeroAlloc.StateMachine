@@ -290,7 +290,7 @@ See [Concurrent Parts](core-concepts/concurrent-parts.md) for the full model.
 
 ## Attribute placement
 
-`[StateMachine]`, `[Transition]`, `[Terminal]`, `[CompositeState]`, and `[HistoryState]` target both `Class` and `Struct`. `[StateMachineGroup]` and `[StateMachinePart]` target `Class` only (concurrent dispatch requires reference identity).
+`[StateMachine]`, `[Transition]`, `[Terminal]`, `[CompositeState]`, and `[HistoryState]` target both `Class` and `Struct`, so a `record` or `record struct` works too. `[StateMachineGroup]` and `[StateMachinePart]` target `Class` only (concurrent dispatch requires reference identity), which includes a `record`.
 
 ```csharp
 // Class
@@ -302,7 +302,15 @@ public partial class MyMachine { }
 [StateMachine(InitialState = nameof(S.A))]
 [Transition<S, T>(From = S.A, On = T.X, To = S.B)]
 public partial struct MyMachine { }
+
+// Record or record struct
+[StateMachine(InitialState = nameof(S.A))]
+[Transition<S, T>(From = S.A, On = T.X, To = S.B)]
+public partial record struct MyMachine;
 ```
+
+A record machine copied with `with` gets its own state. On a timed record, the copy shares its
+timers with the original, so avoid `with` on a machine with `AfterMs` transitions, see [#162](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/162).
 
 The machine or group can be nested in other types, and it can be generic. The generated members
 land on the type itself, with every containing type reopened as `partial`, so each containing type
