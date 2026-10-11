@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.2...v1.6.3) (2026-10-11)
+
+
+### Tests
+
+* reset benchmark machines in place so TryFire rows show 0 B ([#171](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/171)) ([fa9a694](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/fa9a69480a0a574d32bc2146e34522a3020ac067))
+
 ## [1.6.2](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.1...v1.6.2) (2026-09-30)
 
 
