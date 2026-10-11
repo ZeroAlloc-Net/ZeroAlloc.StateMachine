@@ -38,10 +38,9 @@ public class StateMachineBenchmarks
         _machine.TryFire(OrderTrigger.Pay);
         var result = _machine.TryFire(OrderTrigger.Ship);
 
-        // Reset by reconstructing (avoids measuring ctor cost on the hot path
-        // — but for a fair reset we need a new instance each cycle, so we accept
-        // that the ctor cost is included. Alternative: expose a Reset() method.)
-        _machine = new OrderMachine();
+        // The generated Reset() puts the machine back in its initial state in place, so the
+        // row measures TryFire alone rather than a new machine per operation.
+        _machine.Reset();
         return result;
     }
 
@@ -64,7 +63,7 @@ public class StateMachineBenchmarks
     {
         _guarded.SetAllow(true);
         var result = _guarded.TryFire(GuardedTrigger.Start);
-        _guarded = new GuardedMachine(); // reset
+        _guarded.Reset();
         return result;
     }
 

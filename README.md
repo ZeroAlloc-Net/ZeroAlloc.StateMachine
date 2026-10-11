@@ -39,16 +39,16 @@ machine.TryFire(Trigger.Submit); // false — Done has no outgoing transitions
 
 ## Performance
 
-Head-to-head vs [Stateless](https://github.com/dotnet-state-machine/stateless) 5.15 (the de-facto state-machine library in .NET). .NET 10.0.7, BenchmarkDotNet v0.14.0.
+Head-to-head vs [Stateless](https://github.com/dotnet-state-machine/stateless) 5.20.1 (the de-facto state-machine library in .NET). .NET 10.0.12, BenchmarkDotNet v0.15.8.
 
 | Operation | Stateless | ZA.StateMachine | Speedup |
 |---|---:|---:|---:|
-| Fire valid (3-step cycle) | 4,495 ns / 7,272 B | **36 ns / 24 B** | **124× faster, 303× less alloc** |
-| Fire invalid | 27 ns / 24 B | **1.6 ns / 0 B** | **17× faster, 0 B alloc** |
-| Guard allowed | 2,718 ns / 4,160 B | **15 ns / 24 B** | **178× faster, 173× less alloc** |
-| Guard blocked | 699 ns / 792 B | **0.3 ns / 0 B** | **2,200× faster, 0 B alloc** |
+| Fire valid (3-step cycle) | 4,476 ns / 7,600 B | **15 ns / 0 B** | **~300× faster, 0 B alloc** |
+| Fire invalid | 23 ns / 24 B | **1.6 ns / 0 B** | **~15× faster, 0 B alloc** |
+| Guard allowed | 2,430 ns / 4,336 B | **< 1 ns / 0 B** | **> 1,000× faster, 0 B alloc** |
+| Guard blocked | 422 ns / 768 B | **< 1 ns / 0 B** | **> 400× faster, 0 B alloc** |
 
-Stateless walks a `Dictionary<TTrigger, StateRepresentation>` on every fire and allocates trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — single jump-table lookup, zero allocation on the dispatch path. The Fire-valid row also includes a per-iteration machine reset for both libraries; ZA's reset is one allocation because configuration is compile-time, while Stateless's reset includes its fluent `Configure().Permit()` rebuild — see [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md) for the full breakdown.
+Stateless walks a `Dictionary<TTrigger, StateRepresentation>` on every fire and allocates trigger/transition info objects. ZA emits a `switch` expression over `(State, Trigger)` at compile time — single jump-table lookup, zero allocation on the dispatch path. The Fire-valid row also includes a per-iteration machine reset for both libraries; ZA resets in place with the generated `Reset()` and allocates nothing, because configuration is compile-time, while Stateless's reset includes its fluent `Configure().Permit()` rebuild — see [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md) for the full breakdown.
 
 Full methodology + self-benchmark: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md).
 

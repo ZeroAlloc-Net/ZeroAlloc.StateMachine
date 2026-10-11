@@ -22,7 +22,8 @@ namespace ZeroAlloc.StateMachine.Benchmarks;
 [HideColumns("Error", "StdDev", "Median", "RatioSD")]
 public class StatelessComparisonBenchmark
 {
-    // ZA machines (re-allocated per iteration where the test cycles to a terminal state)
+    // ZA machines, put back in their initial state by the generated Reset() where the test
+    // cycles to a terminal state
     private OrderMachine _zaMachine = null!;
     private GuardedMachine _zaGuarded = null!;
 
@@ -78,7 +79,7 @@ public class StatelessComparisonBenchmark
         _zaMachine.TryFire(OrderTrigger.Submit);
         _zaMachine.TryFire(OrderTrigger.Pay);
         var ok = _zaMachine.TryFire(OrderTrigger.Ship);
-        _zaMachine = new OrderMachine();
+        _zaMachine.Reset();
         return ok;
     }
 
@@ -126,7 +127,7 @@ public class StatelessComparisonBenchmark
     {
         _zaGuarded.SetAllow(true);
         var ok = _zaGuarded.TryFire(GuardedTrigger.Start);
-        _zaGuarded = new GuardedMachine();
+        _zaGuarded.Reset();
         return ok;
     }
 
