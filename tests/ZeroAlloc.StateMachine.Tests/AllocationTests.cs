@@ -32,6 +32,20 @@ public class AllocationTests
     }
 
     [Fact]
+    public void TryFire_GuardAllowed_WithReset_AllocatesNothing()
+    {
+        // The README's "Guard allowed" row: the guarded Submit transition fires, then Reset.
+        var machine = new GatedOrderMachine();
+        machine.SetAllow(true);
+        AllocationGate.AssertBudget(0, Iterations, () =>
+        {
+            machine.TryFire(GatedTrigger.Submit);
+            machine.Reset();
+        }, "TryFire guard allowed + Reset");
+        machine.Current.Should().Be(GatedState.Idle);
+    }
+
+    [Fact]
     public void TryFire_GuardBlocked_AllocatesNothing()
     {
         var machine = new GatedOrderMachine();
