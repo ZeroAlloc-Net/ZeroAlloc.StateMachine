@@ -2,7 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.StateMachine.svg)](https://www.nuget.org/packages/ZeroAlloc.StateMachine)
 [![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/LICENSE)
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
 
@@ -19,6 +19,8 @@ dotnet add package ZeroAlloc.StateMachine
 ```
 
 ```csharp
+using ZeroAlloc.StateMachine;
+
 public enum State   { Idle, Pending, Done }
 public enum Trigger { Submit, Pay }
 
@@ -30,7 +32,7 @@ public partial class OrderMachine { }
 
 var machine = new OrderMachine();
 machine.TryFire(Trigger.Submit); // true — Idle → Pending
-machine.Current;                 // State.Pending
+var state = machine.Current;     // State.Pending
 machine.TryFire(Trigger.Pay);    // true — Pending → Done
 machine.TryFire(Trigger.Submit); // false — Done has no outgoing transitions
 ```
@@ -63,6 +65,10 @@ Full methodology + self-benchmark: [docs/performance.md](https://github.com/Zero
 | Entry / exit hooks | `partial void OnEnter{State}` / `partial void OnExit{State}` — observe every crossing |
 | Terminal states | `[Terminal<TState>]` silences the "no outgoing transitions" diagnostic |
 | Struct support | `partial struct` machines eliminate even the instance heap allocation |
+| Composite states | `[CompositeState<TState>]` delegates a state to a sub-machine; `[HistoryState<TState>]` restores its last sub-state on re-entry |
+| Timeout transitions | `AfterMs` on a `[Transition]` fires it automatically after a time in the source state |
+| Concurrent parts | `[StateMachineGroup]` + `[StateMachinePart<TState, TTrigger>]` host independent machines in one class |
+| Diagram export | `Diagram = true` emits a Mermaid `stateDiagram-v2` as a `MermaidDiagram` constant |
 | Diagnostics | Compile-time checks such as unreachable state, sink state, a likely trigger typo, and a guard ignored on a concurrent machine |
 
 ---
@@ -80,6 +86,7 @@ public partial class MyMachine { }
 |----------|------|---------|-------------|
 | `InitialState` | `string` | required | Name of the initial state enum value. Use `nameof(...)`. |
 | `Concurrent` | `bool` | `false` | Enables thread-safe transitions via `Interlocked.CompareExchange`. |
+| `Diagram` | `bool` | `false` | Emits a Mermaid diagram of the transitions as a `MermaidDiagram` constant. |
 
 ### `[Transition<TState, TTrigger>]`
 
@@ -93,6 +100,8 @@ public partial class MyMachine { }
 | `On` | `TTrigger` | required | Trigger that fires the transition. |
 | `To` | `TState` | required | Destination state. |
 | `When` | `bool` | `false` | Emit a `Guard{Trigger}` partial stub and add a `when` clause. |
+| `AfterMs` | `int` | `0` | Fire this transition automatically after this many milliseconds in `From`. |
+| `Part` | `string?` | `null` | The `[StateMachinePart]` this transition belongs to, inside a `[StateMachineGroup]`. |
 
 ### `[Terminal<TState>]`
 
@@ -168,12 +177,16 @@ public partial class OrderMachine
 ## Concurrent mode
 
 ```csharp
-[StateMachine(InitialState = nameof(State.Idle), Concurrent = true)]
-[Transition<State, Trigger>(From = State.Idle, On = Trigger.Start, To = State.Running)]
+public enum WorkerState   { Idle, Running }
+public enum WorkerTrigger { Start }
+
+[StateMachine(InitialState = nameof(WorkerState.Idle), Concurrent = true)]
+[Transition<WorkerState, WorkerTrigger>(From = WorkerState.Idle, On = WorkerTrigger.Start, To = WorkerState.Running)]
+[Terminal<WorkerState>(State = WorkerState.Running)]
 public partial class WorkerMachine { }
 ```
 
-State is stored as `volatile long`. `TryFire` uses a CAS loop — safe for concurrent callers. Guards are not generated in concurrent mode (TOCTOU risk), so `When = true` there raises warning ZSM0022 and the transition fires unconditionally.
+State is stored in a `long` field, read with `Volatile.Read` and updated with `Interlocked.CompareExchange`. `TryFire` uses a CAS loop — safe for concurrent callers. Guards are not generated in concurrent mode (TOCTOU risk), so `When = true` there raises warning ZSM0022 and the transition fires unconditionally.
 
 ---
 
@@ -201,11 +214,11 @@ Full docs live in [`docs/`](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMach
 - [Testing](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/testing.md)
 - [AOT & Trimming](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/aot.md)
 - [Performance](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md)
-- Core concepts: [States & Triggers](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/states-and-triggers.md) · [Transitions](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/transitions.md) · [Concurrent Mode](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/concurrent-mode.md)
+- Core concepts: [States & Triggers](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/states-and-triggers.md) · [Transitions](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/transitions.md) · [Concurrent Mode](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/concurrent-mode.md) · [Composite States](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/composite-states.md) · [Timeout Transitions](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/timeout-transitions.md) · [Concurrent Parts](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/concurrent-parts.md) · [Diagram Export](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/core-concepts/diagram-export.md)
 - Guides: [Guards](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/guards.md) · [Entry/Exit Actions](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/entry-exit-actions.md) · [Terminal States](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/terminal-states.md) · [Circuit Breaker Example](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/guides/circuit-breaker.md)
 
 ---
 
 ## License
 
-MIT
+MIT — see [LICENSE](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/LICENSE).
