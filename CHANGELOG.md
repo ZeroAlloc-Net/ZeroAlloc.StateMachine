@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.3...v1.6.4) (2026-10-15)
+
+
+### Documentation
+
+* document every shipped feature and fix README samples ([#177](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/177)) ([12bab64](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/12bab64d8e2636c2426eab0975af6244b89b254a))
+
 ## [1.6.3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.2...v1.6.3) (2026-10-11)
 
 
