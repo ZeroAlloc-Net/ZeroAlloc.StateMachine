@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.4...v1.6.5) (2026-10-16)
+
+
+### Documentation
+
+* rewrite the readme as a product page ([#181](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/181)) ([7505455](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/75054553fd8346a476b960a723de386c1563cde6))
+
 ## [1.6.4](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.3...v1.6.4) (2026-10-15)
 
 
