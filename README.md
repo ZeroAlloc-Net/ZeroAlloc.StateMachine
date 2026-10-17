@@ -2,6 +2,7 @@
 
 [![NuGet](https://img.shields.io/nuget/v/ZeroAlloc.StateMachine.svg)](https://www.nuget.org/packages/ZeroAlloc.StateMachine)
 [![Build](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/actions/workflows/ci.yml/badge.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/ZeroAlloc-Net/ZeroAlloc.StateMachine/graph/badge.svg)](https://codecov.io/gh/ZeroAlloc-Net/ZeroAlloc.StateMachine)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/LICENSE)
 [![AOT](https://img.shields.io/badge/AOT--Compatible-passing-brightgreen)](https://learn.microsoft.com/dotnet/core/deploying/native-aot/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/MarcelRoozekrans?style=flat&logo=githubsponsors&color=ea4aaa&label=Sponsor)](https://github.com/sponsors/MarcelRoozekrans)
