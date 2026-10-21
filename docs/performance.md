@@ -11,41 +11,43 @@ ZeroAlloc.StateMachine is designed so that `TryFire` allocates **zero bytes** on
 ## Head-to-head vs Stateless
 
 <!-- BENCH:START -->
-_Last refreshed: 2026-10-11_
+_Last refreshed: 2026-10-21. Stateless 5.20.1, BenchmarkDotNet v0.15.8, .NET 10.0.13, Windows 11 on an otherwise idle i9-12900HK; out of process, three launches, pinned to two performance cores. Allocations are exact. Speed is shown as same-run ratios; absolute timings are not published._
 
 [Stateless](https://github.com/dotnet-state-machine/stateless) is the de-facto state-machine library in .NET — class-based, fluent configuration, runtime trigger dispatch. ZA's source-generated switch dispatch dominates every comparable scenario.
 
-| Operation | Stateless | ZA.StateMachine | Speedup |
-|---|---:|---:|---:|
-| Fire valid (3-step cycle) | 4,476 ns / 7,600 B | **15 ns / 0 B** | **~300× faster, 0 B alloc** |
-| Fire invalid | 23 ns / 24 B | **1.6 ns / 0 B** | **~15× faster, 0 B alloc** |
-| Guard allowed | 2,430 ns / 4,336 B | **< 1 ns / 0 B** | **> 1,000× faster, 0 B alloc** |
-| Guard blocked | 422 ns / 768 B | **< 1 ns / 0 B** | **> 400× faster, 0 B alloc** |
+| Operation | Stateless time ÷ ZA's | Launch range | Stateless alloc | ZA alloc |
+|---|---:|---:|---:|---:|
+| Fire valid (3-step cycle) | **205×** | 203–208 | 7,600 B | **0 B** |
+| Fire invalid | **13.8×** | 13.5–14.0 | 24 B | **0 B** |
+| Guard allowed | ZA below resolution | | 4,336 B | **0 B** |
+| Guard blocked | ZA below resolution | | 768 B | **0 B** |
 
-ZA's rows allocate nothing: the benchmark puts the machine back in its initial state with the generated `Reset()`, which writes the state field in place. Rows under 1 ns are below what BenchmarkDotNet can tell apart from an empty method, so their speedups are lower bounds. The Stateless row's 7,600 B is two things combined: each `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects, **and** the per-iteration `BuildStatelessOrder()` reset rebuilds the configuration (`new StateMachine<,>(initial)` plus three `Configure().Permit()` calls — each one allocating dictionary entries).
+ZA's rows allocate nothing: the benchmark puts the machine back in its initial state with the generated `Reset()`, which writes the state field in place. ZA's guard rows are below what BenchmarkDotNet can tell apart from an empty method while Stateless' are measurable, so no finite ratio can be given; Stateless' allowed guard takes 3.9 times as long as its blocked one. The Stateless row's 7,600 B is two things combined: each `Fire` walks a `Dictionary<TTrigger, StateRepresentation>` and constructs trigger/transition info objects, **and** the per-iteration `BuildStatelessOrder()` reset rebuilds the configuration (`new StateMachine<,>(initial)` plus three `Configure().Permit()` calls — each one allocating dictionary entries).
 
 This is the apples-to-apples comparison for cyclic state machines — a per-request handler in a web app, or a fresh circuit-breaker per stream. Both libraries pay a "reset" cost in this workload. ZA's reset is a single field write because configuration is resolved at compile time; Stateless's includes the full fluent-configuration rebuild because configuration is runtime. The dispatch portion alone (excluding the rebuild) is roughly an order of magnitude smaller on the Stateless side but still measurably slower than ZA's `switch`-expression `TryFire`.
 <!-- BENCH:END -->
 
 ## Self-benchmark
 
-| Benchmark | Mean | Allocated |
+Measured in the same run as the comparison above. `Ratio` is each row's mean time relative to the valid transition.
+
+| Benchmark | Ratio | Allocated |
 |---|---:|---:|
-| TryFire – valid (non-concurrent) | 8.1 ns | 0 B |
-| TryFire – invalid (non-concurrent) | 1.9 ns | 0 B |
-| TryFire – guard allowed (non-concurrent) | 1.0 ns | 0 B |
-| TryFire – guard blocked (non-concurrent) | ~0 ns ‡ | 0 B |
-| TryFire – CAS, no contention (concurrent) | 37.5 ns | 0 B |
+| TryFire – valid (non-concurrent) | 1.00 | 0 B |
+| TryFire – invalid (non-concurrent) | 0.10 | 0 B |
+| TryFire – guard allowed (non-concurrent) | below resolution ‡ | 0 B |
+| TryFire – guard blocked (non-concurrent) | below resolution ‡ | 0 B |
+| TryFire – CAS, no contention (concurrent) | 4.20 | 0 B |
 
-The valid and guard-allowed benchmarks end in a terminal state, so each operation resets the machine with the generated `Reset()`. That is a field write and allocates nothing, so every row shows what `TryFire` itself costs. Timings this short move by a few nanoseconds between runs.
+The valid and guard-allowed benchmarks end in a terminal state, so each operation resets the machine with the generated `Reset()`. That is a field write and allocates nothing, so every row shows what `TryFire` itself costs.
 
-‡ BenchmarkDotNet reports a `ZeroMeasurement` warning — the blocked-guard path is too fast to measure accurately. The duration is indistinguishable from an empty method call.
+‡ BenchmarkDotNet cannot tell these rows apart from an empty method call; the guard paths are too fast to measure accurately.
 
 ## What drives each result
 
 **Valid transition (non-concurrent)** — hits the `(State, Trigger) switch` arm, calls `Fire` (state field write + `OnExit`/`OnEnter` dispatch), returns `true`. The benchmark cycles through all three transitions and resets the machine in place with `Reset()`, so nothing is allocated.
 
-**Invalid trigger** — falls through to the `_ => false` default arm immediately. No state write, no hook dispatch. At 1.4 ns it is close to the minimum measurable overhead of a switch expression.
+**Invalid trigger** — falls through to the `_ => false` default arm immediately. No state write, no hook dispatch. At a tenth of the valid transition's time it is close to the minimum measurable overhead of a switch expression.
 
 **Guard allowed** — same path as a valid transition, plus one additional virtual-free partial method call (the guard predicate). Allocates nothing; the benchmark resets in place, as in the valid case.
 
