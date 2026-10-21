@@ -15,8 +15,8 @@ are a generated `switch`, 0 B per transition and NativeAOT-ready.
 - **0 B per transition, asserted in CI.** `TryFire` allocates nothing on valid, invalid, guarded and
   concurrent transitions; `AllocationTests` fails CI if it does. Stateless allocates 24 B just
   to reject an invalid trigger.
-- **About 15× faster than Stateless.** Rejecting an invalid trigger takes 1.6 ns against
-  23 ns in the same run, and a three-step cycle with reset is about 300× faster.
+- **About 14× faster than Stateless.** Rejecting an invalid trigger takes a fourteenth of
+  Stateless' time in the same run, and a three-step cycle with reset is about 205× faster.
 - **Works under NativeAOT and trimming.** No reflection; every PR publishes an AOT sample with
   `PublishAot=true`.
 - **Compile-time diagnostics instead of runtime surprises.** An unreachable state, a state with no way
@@ -74,13 +74,13 @@ BenchmarkDotNet, same run against [Stateless](https://github.com/dotnet-state-ma
 
 | Operation | Speed-up vs Stateless | Stateless alloc | ZA alloc |
 |---|---:|---:|---:|
-| Fire valid, 3-step cycle with reset | ~300× | 7,600 B | 0 B |
-| Fire invalid | ~15× | 24 B | 0 B |
-| Guard blocked | > 400× | 768 B | 0 B |
+| Fire valid, 3-step cycle with reset | ~205× | 7,600 B | 0 B |
+| Fire invalid | ~14× | 24 B | 0 B |
+| Guard blocked | ZA below resolution | 768 B | 0 B |
 
 The cycle row includes each library's reset: a field write for ZeroAlloc, a fluent reconfiguration for
-Stateless. The guard row is a lower bound, because ZeroAlloc's time is below what BenchmarkDotNet can
-measure. Full numbers and methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md).
+Stateless. ZeroAlloc's guard time is below what BenchmarkDotNet can measure, so that row has no finite
+ratio. Full numbers and methodology: [docs/performance.md](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/blob/main/docs/performance.md).
 
 ## Learn more
 
