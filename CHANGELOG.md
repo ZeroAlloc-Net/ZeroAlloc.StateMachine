@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.5...v1.6.6) (2026-10-21)
+
+
+### Documentation
+
+* re-run the benchmarks pinned, with three launches ([#194](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/194)) ([617fe9e](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/617fe9eb6b5765faccf77e83ac8b6987fdf69039))
+
 ## [1.6.5](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.4...v1.6.5) (2026-10-16)
 
 
