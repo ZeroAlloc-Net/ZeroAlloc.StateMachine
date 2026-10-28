@@ -33,8 +33,10 @@ public static OrderMachine Restore(OrderState state);
   The generator works out the set of valid states at build time and emits it as a `switch`,
   so the check allocates nothing and uses no reflection or `Enum.IsDefined`.
 - **Arms timers.** On a concurrent machine with `AfterMs` transitions, timers for the
-  restored state are armed, and timers armed for any other state are disarmed. The timer
-  starts over: a persisted state carries no record of how long the machine was in it.
+  restored state are armed. The timer starts over: a persisted state carries no record of how
+  long the machine was in it. The machine is built through a generated private constructor
+  that arms no timer, so a timer of the initial state never exists and cannot fire before
+  the restored state is set.
 - **Works for every variant.** Class and struct machines, concurrent or not.
   For a struct it returns a copy.
 
@@ -70,11 +72,12 @@ parameterless constructor. It is left out, with an informational diagnostic, and
 is still generated, when:
 
 - a class declares constructors but none without parameters, or has a primary constructor
-  and no parameterless constructor, or is abstract, or a struct has a primary constructor
+  and no parameterless constructor, or is abstract, or has timed transitions and a primary
+  constructor or a base class that needs constructor arguments, or a struct has a primary constructor
   and no parameterless constructor that chains to it: [ZSM0027](../diagnostics/ZSM0027.md);
 - the type already declares a member named `Restore` that would conflict with the generated
   one: [ZSM0028](../diagnostics/ZSM0028.md).
 
 Both are informational so that a type that compiled before `Restore` existed keeps compiling.
 
-`[StateMachineGroup]` types do not get `Restore`.
+`[StateMachineGroup]` types do not get `Restore` yet, see [#205](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/205).

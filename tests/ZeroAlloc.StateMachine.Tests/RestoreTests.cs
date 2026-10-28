@@ -58,25 +58,45 @@ public class RestoreTests
         Assert.Throws<ArgumentOutOfRangeException>(() => RestoreConcurrentMachine.Restore(RState.Orphan));
     }
 
+    // Timer fields are private, and a timer is created the first time it is armed. Reading the
+    // field shows, without any waiting, whether a timer was ever armed for that edge.
+    private static System.Threading.Timer? TimerOf(object machine, string edge) =>
+        (System.Threading.Timer?)machine.GetType()
+            .GetField("_timer_" + edge, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .GetValue(machine);
+
     [Fact]
-    public async Task Concurrent_Restore_arms_the_timers_of_the_restored_state()
+    public void Concurrent_Restore_arms_the_timers_of_the_restored_state()
     {
         using var m = RestoreTimedMachine.Restore(RState.Working);
 
-        await Task.Delay(1000);
-
-        Assert.Equal(RState.Done, m.Current);
+        Assert.NotNull(TimerOf(m, "Working_Timeout"));
     }
 
     [Fact]
-    public async Task Concurrent_Restore_disarms_the_timer_the_constructor_armed_for_the_initial_state()
+    public void Concurrent_Restore_never_arms_the_timer_of_the_initial_state()
     {
+        // Restore builds the machine through a constructor that arms nothing, so no timer of
+        // the initial state exists that could fire before the restored state is set.
         using var m = RestoreConcurrentMachine.Restore(RState.Working);
 
-        // Idle's 300ms timer fires Timeout, which Working would take to Done if it were still armed.
-        await Task.Delay(1000);
+        Assert.Null(TimerOf(m, "Idle_Timeout"));
+    }
 
-        Assert.Equal(RState.Working, m.Current);
+    [Fact]
+    public void Concurrent_Restore_to_the_initial_state_arms_its_timer()
+    {
+        using var m = RestoreConcurrentMachine.Restore(RState.Idle);
+
+        Assert.NotNull(TimerOf(m, "Idle_Timeout"));
+    }
+
+    [Fact]
+    public void A_machine_built_with_new_still_arms_the_initial_state_timer()
+    {
+        using var m = new RestoreConcurrentMachine();
+
+        Assert.NotNull(TimerOf(m, "Idle_Timeout"));
     }
 
     [Fact]

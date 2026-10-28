@@ -104,6 +104,13 @@ partial class Multi : System.IDisposable
         }
     }
 
+    private readonly struct __RestoreMarker { }
+
+    /// <summary>Used by Restore only: creates the machine without arming any timer.</summary>
+    private Multi(__RestoreMarker _)
+    {
+    }
+
     /// <summary>
     /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter. Timers of the restored state are armed.
     /// </summary>
@@ -113,7 +120,7 @@ partial class Multi : System.IDisposable
         if (!IsRestorableState(state))
             throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of MS that is reachable from A.");
 
-        var machine = new Multi();
+        var machine = new Multi(default(__RestoreMarker));
         machine.ResetTo(state);
         return machine;
     }

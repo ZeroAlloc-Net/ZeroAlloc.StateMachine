@@ -753,7 +753,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeDisposeConflict(type, transitions, diagnostics);
         AnalyzeEmptyDiagramRequest(diagram, transitions, type, smAttr, diagnostics);
         AnalyzeGuardsOnConcurrentMachine(type, concurrent, diagnostics);
-        AnalyzeRestore(type, stateTypeFqn, hostLocation, diagnostics);
+        AnalyzeRestore(type, stateTypeFqn, hostLocation, transitions.Any(static t => t.AfterMs > 0), diagnostics);
 
         var hasTimed = transitions.Any(static t => t.AfterMs > 0);
         AnalyzeMissingHookConstructorInvocation(type, hasTimed, diagnostics);
@@ -766,6 +766,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         INamedTypeSymbol type,
         string stateTypeFqn,
         Location hostLocation,
+        bool hasTimed,
         ImmutableArray<DiagnosticInfo>.Builder diagnostics)
     {
         foreach (var member in type.GetMembers("Restore"))
@@ -786,7 +787,7 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
             return;
         }
 
-        var reason = RestoreConstructorProblem(type);
+        var reason = RestoreConstructorProblem(type, hasTimed);
         if (reason is not null)
         {
             diagnostics.Add(DiagnosticInfo.Create(
@@ -794,9 +795,21 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
     }
 
-    private static string? RestoreConstructorProblem(INamedTypeSymbol type)
+    private static string? RestoreConstructorProblem(INamedTypeSymbol type, bool hasTimed)
     {
         if (type.IsAbstract) return "it is abstract, so 'new T()' cannot create it";
+
+        // A timed machine is restored through a generated private constructor that arms no
+        // timer, so that no timer of the initial state can fire before the state is set. That
+        // constructor cannot chain to a primary constructor or to a base constructor that takes
+        // arguments, whose arguments only the user knows.
+        if (hasTimed && type.TypeKind != TypeKind.Struct)
+        {
+            if (HasPrimaryConstructor(type))
+                return "it has timed transitions and a primary constructor, and Restore needs a constructor that arms no timer";
+            if (type.BaseType is { SpecialType: not SpecialType.System_Object } baseType && !HasAccessibleParameterlessCtor(baseType, type))
+                return "it has timed transitions and a base class without an accessible parameterless constructor, and Restore needs a constructor that arms no timer";
+        }
 
         var (hasUserCtor, hasUserParameterlessCtor) = UserConstructors(type);
         if (hasUserParameterlessCtor) return null;
@@ -810,6 +823,13 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
 
         return hasUserCtor ? "it declares constructors but no parameterless one" : null;
     }
+
+    private static bool HasAccessibleParameterlessCtor(INamedTypeSymbol baseType, INamedTypeSymbol derived) =>
+        baseType.InstanceConstructors.Any(c =>
+            c.Parameters.IsEmpty
+            && (c.DeclaredAccessibility is Accessibility.Public or Accessibility.Protected or Accessibility.ProtectedOrInternal
+                || (c.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedAndInternal
+                    && SymbolEqualityComparer.Default.Equals(c.ContainingAssembly, derived.ContainingAssembly))));
 
     // ZSM0022: When = true on a concurrent machine. The writer emits no guard for it, so the
     // transition fires unconditionally; report it at the When argument so the user sees which
