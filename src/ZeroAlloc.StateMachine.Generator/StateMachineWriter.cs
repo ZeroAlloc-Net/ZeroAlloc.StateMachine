@@ -498,13 +498,17 @@ internal static class StateMachineWriter
     /// is left out, the same ones ZSM0001 warns about, and so is a state only reachable from one of
     /// those.
     /// </summary>
-    private static System.Collections.Generic.List<string> RestorableStates(StateMachineModel m)
+    private static System.Collections.Generic.List<string> RestorableStates(StateMachineModel m) =>
+        RestorableStates(m.InitialState, m.Transitions);
+
+    internal static System.Collections.Generic.List<string> RestorableStates(
+        string initialState, EquatableArray<TransitionModel> transitions)
     {
-        var order = new System.Collections.Generic.List<string> { m.InitialState };
-        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal) { m.InitialState };
+        var order = new System.Collections.Generic.List<string> { initialState };
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal) { initialState };
         for (var i = 0; i < order.Count; i++)
         {
-            foreach (var t in m.Transitions)
+            foreach (var t in transitions)
             {
                 if (string.Equals(t.From, order[i], StringComparison.Ordinal) && seen.Add(t.To))
                     order.Add(t.To);

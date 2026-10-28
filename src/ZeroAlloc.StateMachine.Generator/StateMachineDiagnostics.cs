@@ -249,9 +249,9 @@ internal static class StateMachineDiagnostics
     public static readonly DiagnosticDescriptor RestoreNameCollision = new(
         id:                 "ZSM0028",
         title:              "Restore is not generated: the type declares a conflicting member",
-        messageFormat:      "'{0}' gets no generated Restore method because it already declares a member named 'Restore' that conflicts with it",
+        messageFormat:      "'{0}' gets no generated Restore method because it already declares a member that conflicts with it",
         category:           "ZeroAlloc.StateMachine",
         defaultSeverity:    DiagnosticSeverity.Info,
         isEnabledByDefault: true,
-        description:        "The generator emits public static Restore(TState), and Restore(TState, TSubState) for a composite state. A member named Restore that is not a method, or a method whose first parameter is the state type and which has one or two parameters, would conflict with it, so the generator emits none and leaves your member alone. Rename your member to get the generated Restore. The machine itself is still generated.");
+        description:        "The generator emits public static Restore(TState), and Restore(TState, TSubState) for a composite state. A member named Restore that is not a method, or a method whose first parameter is the state type and which has one or two parameters, would conflict with it, so the generator emits none and leaves your member alone. A [StateMachineGroup] gets a nested GroupState record, a CurrentState property and Restore(GroupState), and a member with one of those names conflicts with them. Rename your member to get the generated Restore. The machine itself is still generated.");
 }

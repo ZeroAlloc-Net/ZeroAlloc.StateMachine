@@ -125,6 +125,55 @@ partial class Device
     partial void OnEnterConnDisconnected(global::MyApp.ConnS from);
 
 
+    /// <summary>The state of every part of this group, for persisting it and restoring it with <c>Restore</c>.</summary>
+    public readonly record struct GroupState(global::MyApp.OpS Op, global::MyApp.ConnS Conn);
+
+    /// <summary>The current state of every part. Each part is read on its own, so the parts are not read as one atomic snapshot while other threads fire triggers.</summary>
+    public GroupState CurrentState => new GroupState(
+        OpCurrent,
+        ConnCurrent);
+
+    private static bool IsRestorableOpState(global::MyApp.OpS state)
+    {
+        switch (state)
+        {
+            case global::MyApp.OpS.Idle:
+            case global::MyApp.OpS.Running:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsRestorableConnState(global::MyApp.ConnS state)
+    {
+        switch (state)
+        {
+            case global::MyApp.ConnS.Disconnected:
+            case global::MyApp.ConnS.Connected:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the group with every part in the state of <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException">A part's state is not a declared state, or is not reachable from the part's initial state.</exception>
+    public static Device Restore(GroupState state)
+    {
+        if (!IsRestorableOpState(state.Op))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state.Op, "The state of part Op is not a declared state of OpS that is reachable from Idle.");
+        if (!IsRestorableConnState(state.Conn))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state.Conn, "The state of part Conn is not a declared state of ConnS that is reachable from Disconnected.");
+
+        var group = new Device();
+        group._state_Op = (long)state.Op;
+        group._state_Conn = (long)state.Conn;
+        return group;
+    }
+
     /// <summary>Mermaid stateDiagram-v2 representation of this state-machine group.</summary>
     public const string MermaidDiagram = @"stateDiagram-v2
     state Op {

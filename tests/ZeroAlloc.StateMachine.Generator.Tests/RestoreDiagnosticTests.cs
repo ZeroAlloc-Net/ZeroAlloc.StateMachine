@@ -171,4 +171,71 @@ public partial class M { }");
 
         run.Source("N.M.g.cs").Should().NotContain("__RestoreMarker");
     }
+
+    private const string GroupSource = @"
+using ZeroAlloc.StateMachine;
+namespace N;
+public enum S { A, B }
+public enum T { Go }
+public enum U { X, Y, Orphan }
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[StateMachinePart<U, T>(Name = ""Q"", InitialState = U.X)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, Part = ""P"")]
+[Transition<U, T>(From = U.X, On = T.Go, To = U.Y, Part = ""Q"")]
+";
+
+    [Fact]
+    public void Group_EmitsGroupStateCurrentStateAndRestore_ExcludingUnreachablePartStates()
+    {
+        var run = GeneratorRunner.Run(GroupSource + "public partial class G { }");
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.CompilationErrors.Should().BeEmpty();
+        var source = run.Source("N.G.Group.g.cs");
+        source.Should().Contain("public readonly record struct GroupState(global::N.S P, global::N.U Q);");
+        source.Should().Contain("public GroupState CurrentState");
+        source.Should().Contain("public static G Restore(GroupState state)");
+        source.Should().NotContain("case global::N.U.Orphan:");
+        source.Should().NotContain("__RestoreMarker");
+    }
+
+    [Fact]
+    public void TimedGroup_RestoresThroughAMarkerConstructor()
+    {
+        var run = GeneratorRunner.Run(GroupSource.Replace("To = S.B, Part", "To = S.B, AfterMs = 50, Part") + "public partial class G { }");
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.CompilationErrors.Should().BeEmpty();
+        run.Source("N.G.Group.g.cs").Should().Contain("new G(default(__RestoreMarker))");
+    }
+
+    [Fact]
+    public void Group_WithOnlyAParameterizedConstructor_ReportsZsm0027()
+    {
+        var run = GeneratorRunner.Run(GroupSource + "public partial class G { public G(int x) { } }");
+
+        run.GeneratorDiagnostics.Should().ContainSingle().Which.Id.Should().Be("ZSM0027");
+        run.CompilationErrors.Should().BeEmpty();
+        run.Source("N.G.Group.g.cs").Should().NotContain(" Restore(");
+    }
+
+    [Theory]
+    [InlineData("public int CurrentState { get; }")]
+    [InlineData("public class GroupState { }")]
+    [InlineData("public static G Restore(int x) => new G();")]
+    public void Group_WithAConflictingMember_ReportsZsm0028(string member)
+    {
+        var run = GeneratorRunner.Run(GroupSource + "public partial class G { " + member + " }");
+
+        run.GeneratorDiagnostics.Should().ContainSingle().Which.Id.Should().Be("ZSM0028");
+        run.CompilationErrors.Should().BeEmpty();
+        run.Source("N.G.Group.g.cs").Should().NotContain("record struct GroupState");
+    }
+
+    [Fact]
+    public void Group_Snapshot()
+    {
+        TestHelper.Verify<StateMachineGenerator>(GroupSource.Replace("To = U.Y, Part", "To = U.Y, AfterMs = 50, Part") + "public partial class G { }");
+    }
 }

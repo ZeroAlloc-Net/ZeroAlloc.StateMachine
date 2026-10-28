@@ -35,6 +35,7 @@ internal static class StateMachineGroupWriter
 
         if (hasAnyTimer) WriteGroupDispose(sb, m);
         WriteGroupHookAndCtor(sb, m);
+        WriteGroupRestore(sb, m, hasAnyTimer);
 
         if (m.Diagram)
         {
@@ -265,5 +266,95 @@ internal static class StateMachineGroupWriter
                     sb.AppendLine($"        _timer_{p.Name}_{t.From}_{t.On}?.Dispose();");
         sb.AppendLine($"        System.GC.SuppressFinalize(this);");
         sb.AppendLine($"    }}");
+    }
+
+    // ── Restore (persistence) ────────────────────────────────────────────────
+
+    private static bool CanRestore(StateMachineGroupModel m) =>
+        !m.Parts.IsEmpty
+        && !m.Diagnostics.Any(static d =>
+            string.Equals(d.Descriptor.Id, StateMachineDiagnostics.RestoreNeedsParameterlessConstructor.Id, System.StringComparison.Ordinal) ||
+            string.Equals(d.Descriptor.Id, StateMachineDiagnostics.RestoreNameCollision.Id, System.StringComparison.Ordinal));
+
+    private static void WriteGroupRestore(StringBuilder sb, StateMachineGroupModel m, bool hasAnyTimer)
+    {
+        if (!CanRestore(m)) return;
+
+        var self = m.Declaration!.SelfType;
+
+        // GroupState holds one state per part, named after the part, and is what CurrentState
+        // returns and Restore takes, so that saving and restoring round-trip.
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>The state of every part of this group, for persisting it and restoring it with <c>Restore</c>.</summary>");
+        sb.Append($"    public readonly record struct GroupState(");
+        sb.Append(string.Join(", ", m.Parts.Select(static p => $"{p.StateTypeFqn} {p.Name}")));
+        sb.AppendLine(");");
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>The current state of every part. Each part is read on its own, so the parts are not read as one atomic snapshot while other threads fire triggers.</summary>");
+        sb.AppendLine($"    public GroupState CurrentState => new GroupState(");
+        sb.AppendLine("        " + string.Join(",\n        ", m.Parts.Select(static p => $"{p.Name}Current")) + ");");
+        sb.AppendLine();
+
+        WriteRestorableChecks(sb, m);
+        if (hasAnyTimer) WriteRestoreMarkerConstructor(sb, m.Declaration.Name);
+
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates the group with every part in the state of <paramref name=\"state\"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.");
+        if (hasAnyTimer)
+            sb.AppendLine($"    /// Timers of each part's restored state are armed.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <exception cref=\"System.ArgumentOutOfRangeException\">A part's state is not a declared state, or is not reachable from the part's initial state.</exception>");
+        sb.AppendLine($"    public static {self} Restore(GroupState state)");
+        sb.AppendLine($"    {{");
+        foreach (var p in m.Parts)
+        {
+            sb.AppendLine($"        if (!IsRestorable{p.Name}State(state.{p.Name}))");
+            sb.AppendLine($"            throw new System.ArgumentOutOfRangeException(nameof(state), state.{p.Name}, \"The state of part {p.Name} is not a declared state of {p.StateTypeShort} that is reachable from {p.InitialState}.\");");
+        }
+        sb.AppendLine();
+        sb.AppendLine(hasAnyTimer
+            ? $"        var group = new {self}(default(__RestoreMarker));"
+            : $"        var group = new {self}();");
+        foreach (var p in m.Parts)
+            sb.AppendLine($"        group._state_{p.Name} = (long)state.{p.Name};");
+        foreach (var p in m.Parts)
+        {
+            if (p.Transitions.Any(static t => t.AfterMs > 0))
+                sb.AppendLine($"        group.ArmInitialStateTimers_{p.Name}();");
+        }
+        sb.AppendLine($"        return group;");
+        sb.AppendLine($"    }}");
+    }
+
+    private static void WriteRestorableChecks(StringBuilder sb, StateMachineGroupModel m)
+    {
+        foreach (var p in m.Parts)
+        {
+            sb.AppendLine($"    private static bool IsRestorable{p.Name}State({p.StateTypeFqn} state)");
+            sb.AppendLine($"    {{");
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var s in StateMachineWriter.RestorableStates(p.InitialState, p.Transitions))
+                sb.AppendLine($"            case {p.StateTypeFqn}.{s}:");
+            sb.AppendLine($"                return true;");
+            sb.AppendLine($"            default:");
+            sb.AppendLine($"                return false;");
+            sb.AppendLine($"        }}");
+            sb.AppendLine($"    }}");
+            sb.AppendLine();
+        }
+    }
+
+    // Timed groups are built through a private constructor that arms no timer, so no timer
+    // of a part's initial state can fire before that part's restored state is set.
+    private static void WriteRestoreMarkerConstructor(StringBuilder sb, string name)
+    {
+        sb.AppendLine($"    private readonly struct __RestoreMarker {{ }}");
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Used by Restore only: creates the group without arming any timer.</summary>");
+        sb.AppendLine($"    private {name}(__RestoreMarker _)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
     }
 }

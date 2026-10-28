@@ -80,4 +80,37 @@ is still generated, when:
 
 Both are informational so that a type that compiled before `Restore` existed keeps compiling.
 
-`[StateMachineGroup]` types do not get `Restore` yet, see [#205](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/205).
+## State machine groups
+
+A `[StateMachineGroup]` has one state per part, of different state types, so it gets a nested
+`GroupState` record struct with one property per part, named after the part, and a
+`CurrentState` property that returns it. Save `CurrentState` and pass it to `Restore`:
+
+```csharp
+// [StateMachinePart<OpState, OpTrigger>(Name = "Operational", ...)]
+// [StateMachinePart<ConnState, ConnTrigger>(Name = "Connection", ...)]
+public partial class Device { }
+
+Device.GroupState saved = device.CurrentState;   // GroupState(OpState Operational, ConnState Connection)
+
+using var restored = Device.Restore(saved);
+```
+
+```csharp
+public readonly record struct GroupState(OpState Operational, ConnState Connection);
+public GroupState CurrentState { get; }
+public static Device Restore(GroupState state);
+```
+
+`Restore` follows the rules above for every part: each part's state must be a declared state
+reachable from that part's own initial state, or `ArgumentOutOfRangeException` is thrown, with
+the part named in the message. It fires no hooks, arms the timers of each part's restored state,
+and builds a timed group through a private constructor that arms no initial timer.
+`CurrentState` reads each part on its own, so it is not one atomic snapshot while other threads
+fire triggers. `Restore` is left out, with [ZSM0027](../diagnostics/ZSM0027.md) or
+[ZSM0028](../diagnostics/ZSM0028.md), in the same constructor and name conflict cases as a single
+machine. A member named `GroupState` or `CurrentState` conflicts too.
+
+A group is always a class: `[StateMachineGroup]` and `[StateMachinePart]` target classes only,
+because the parts are concurrent and their timers need the group's reference identity. So unlike
+a single machine, a group has no struct form and there is no struct `Restore` for it.
