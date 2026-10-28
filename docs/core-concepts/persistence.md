@@ -108,5 +108,9 @@ the part named in the message. It fires no hooks, arms the timers of each part's
 and builds a timed group through a private constructor that arms no initial timer.
 `CurrentState` reads each part on its own, so it is not one atomic snapshot while other threads
 fire triggers. `Restore` is left out, with [ZSM0027](../diagnostics/ZSM0027.md) or
-[ZSM0028](../diagnostics/ZSM0028.md), for a struct group, and in the same constructor and name
-conflict cases as a single machine. A member named `GroupState` or `CurrentState` conflicts too.
+[ZSM0028](../diagnostics/ZSM0028.md), in the same constructor and name conflict cases as a single
+machine. A member named `GroupState` or `CurrentState` conflicts too.
+
+A group is always a class: `[StateMachineGroup]` and `[StateMachinePart]` target classes only,
+because the parts are concurrent and their timers need the group's reference identity. So unlike
+a single machine, a group has no struct form and there is no struct `Restore` for it.

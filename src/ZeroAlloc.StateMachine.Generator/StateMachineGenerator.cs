@@ -828,9 +828,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
 
         var hasTimed = parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
-        var reason = type.TypeKind == TypeKind.Struct
-            ? "it is a struct, and Restore needs to create it with 'new T()' and a constructor that arms no timer"
-            : RestoreConstructorProblem(type, hasTimed);
+        // [StateMachineGroup] targets classes only, so a group is never a struct.
+        var reason = RestoreConstructorProblem(type, hasTimed);
         if (reason is not null)
         {
             diagnostics.Add(DiagnosticInfo.Create(
