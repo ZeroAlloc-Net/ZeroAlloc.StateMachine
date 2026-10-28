@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.6...v1.7.0) (2026-10-28)
+
+
+### Features
+
+* generate a public static Restore to rebuild a persisted state ([#202](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/202)) ([31a8565](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/31a8565d52f01013d0cb1ae69e6f03a5f654d3ae)), closes [#201](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/201)
+* generate GroupState, CurrentState and Restore for state machine groups ([#207](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/207)) ([984016b](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/984016b3850d3df4eb9850c11f7cd4e874d28480)), closes [#205](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/205)
+
+
+### Bug Fixes
+
+* never arm the initial state timer while restoring a persisted state ([#206](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/206)) ([99e835b](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/99e835b4a8f6f0ead5ff38ae7bc0c3d84a4b7336))
+
 ## [1.6.6](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.5...v1.6.6) (2026-10-21)
 
 

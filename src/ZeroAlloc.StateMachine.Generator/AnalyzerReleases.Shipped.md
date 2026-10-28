@@ -61,3 +61,12 @@ ZSM0023 | ZeroAlloc.StateMachine | Warning  | State machine nested in a containi
 ZSM0024 | ZeroAlloc.StateMachine | Error    | File-local state machine
 ZSM0025 | ZeroAlloc.StateMachine | Error    | State machine name differs only in case from another state machine
 ZSM0026 | ZeroAlloc.StateMachine | Warning  | Copies of a timed record share its timers
+
+## Release 1.7.0
+
+### New Rules
+
+Rule ID | Category               | Severity | Notes
+--------|------------------------|----------|-----------------------------------------------------------------
+ZSM0027 | ZeroAlloc.StateMachine | Info     | Restore is not generated: no parameterless constructor
+ZSM0028 | ZeroAlloc.StateMachine | Info     | Restore is not generated: the type declares a conflicting member
