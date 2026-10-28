@@ -48,6 +48,34 @@ partial class GuardedMachine
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Idle</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.State state)
+    {
+        switch (state)
+        {
+            case global::MyApp.State.Idle:
+            case global::MyApp.State.Pending:
+            case global::MyApp.State.Done:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Idle</c>.</exception>
+    public static GuardedMachine Restore(global::MyApp.State state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of State that is reachable from Idle.");
+
+        var machine = new GuardedMachine();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.State state, global::MyApp.Trigger trigger)
     {
         switch (state)

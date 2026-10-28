@@ -78,6 +78,34 @@ partial class OrderMachine<TOrder> : System.IDisposable
         ArmInitialStateTimers();
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Idle</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.State state)
+    {
+        switch (state)
+        {
+            case global::MyApp.State.Idle:
+            case global::MyApp.State.Pending:
+            case global::MyApp.State.Done:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter. Timers of the restored state are armed.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Idle</c>.</exception>
+    public static OrderMachine<TOrder> Restore(global::MyApp.State state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of State that is reachable from Idle.");
+
+        var machine = new OrderMachine<TOrder>();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.State state, global::MyApp.Trigger trigger)
     {
         switch (state)
@@ -118,7 +146,7 @@ partial class OrderMachine<TOrder> : System.IDisposable
         System.GC.SuppressFinalize(this);
     }
 
-    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>
+    /// <summary>Arms timers for any timed edges whose From state matches the current state, and disarms those of every other state.</summary>
     private void ArmInitialStateTimers()
     {
         var current = Current;
@@ -134,6 +162,10 @@ partial class OrderMachine<TOrder> : System.IDisposable
                 if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
             }
             __t.Change(500, System.Threading.Timeout.Infinite);
+        }
+        else
+        {
+            _timer_Pending_Expire?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
         }
     }
 

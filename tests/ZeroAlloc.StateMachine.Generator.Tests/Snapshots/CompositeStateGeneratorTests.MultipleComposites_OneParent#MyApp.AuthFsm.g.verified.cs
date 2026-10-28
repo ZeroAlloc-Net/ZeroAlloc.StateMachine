@@ -45,6 +45,33 @@ partial class AuthFsm
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>ValidatingToken</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.Auth state)
+    {
+        switch (state)
+        {
+            case global::MyApp.Auth.ValidatingToken:
+            case global::MyApp.Auth.Renewing:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>ValidatingToken</c>.</exception>
+    public static AuthFsm Restore(global::MyApp.Auth state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of Auth that is reachable from ValidatingToken.");
+
+        var machine = new AuthFsm();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.Auth state, global::MyApp.T trigger)
     {
         switch (state)

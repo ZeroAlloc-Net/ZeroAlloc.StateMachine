@@ -96,6 +96,9 @@ internal static class StateMachineWriter
         WriteResetMechanics(sb, m);
         sb.AppendLine();
 
+        // Restore: the supported way to rebuild a persisted state
+        WriteRestore(sb, m);
+
         // OnExit dispatcher
         WriteOnExitDispatcher(sb, m);
         sb.AppendLine();
@@ -372,6 +375,9 @@ internal static class StateMachineWriter
         WriteResetMechanics(sb, m);
         sb.AppendLine();
 
+        // Restore: the supported way to rebuild a persisted state
+        WriteRestore(sb, m);
+
         // OnExit + OnEnter dispatchers — same as non-concurrent
         WriteOnExitDispatcher(sb, m);
         sb.AppendLine();
@@ -484,6 +490,142 @@ internal static class StateMachineWriter
         sb.AppendLine($"    }}");
     }
 
+    // ── Restore (persistence) ────────────────────────────────────────────────
+
+    /// <summary>
+    /// The states a persisted value may be restored to: the initial state and every state reachable
+    /// from it through the transitions, in discovery order. A declared state that nothing leads to
+    /// is left out, the same ones ZSM0001 warns about, and so is a state only reachable from one of
+    /// those.
+    /// </summary>
+    private static System.Collections.Generic.List<string> RestorableStates(StateMachineModel m)
+    {
+        var order = new System.Collections.Generic.List<string> { m.InitialState };
+        var seen = new System.Collections.Generic.HashSet<string>(StringComparer.Ordinal) { m.InitialState };
+        for (var i = 0; i < order.Count; i++)
+        {
+            foreach (var t in m.Transitions)
+            {
+                if (string.Equals(t.From, order[i], StringComparison.Ordinal) && seen.Add(t.To))
+                    order.Add(t.To);
+            }
+        }
+        return order;
+    }
+
+    private static bool CanRestore(StateMachineModel m) =>
+        !m.Diagnostics.Any(static d =>
+            string.Equals(d.Descriptor.Id, StateMachineDiagnostics.RestoreNeedsParameterlessConstructor.Id, StringComparison.Ordinal) ||
+            string.Equals(d.Descriptor.Id, StateMachineDiagnostics.RestoreNameCollision.Id, StringComparison.Ordinal));
+
+    private static void WriteRestore(StringBuilder sb, StateMachineModel m)
+    {
+        var st = m.StateTypeFqn;
+        var self = m.Declaration!.SelfType;
+
+        // IsRestorableState is always emitted: a parent machine validates a sub-state with it.
+        sb.AppendLine($"    /// <summary>Whether <paramref name=\"state\"/> is a declared state reachable from <c>{m.InitialState}</c>, and so a valid argument to <c>Restore</c>.</summary>");
+        sb.AppendLine($"    internal static bool IsRestorableState({st} state)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"        switch (state)");
+        sb.AppendLine($"        {{");
+        foreach (var s in RestorableStates(m))
+            sb.AppendLine($"            case {st}.{s}:");
+        sb.AppendLine($"                return true;");
+        sb.AppendLine($"            default:");
+        sb.AppendLine($"                return false;");
+        sb.AppendLine($"        }}");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        if (!CanRestore(m)) return;
+
+        var timerNote = m.Concurrent ? " Timers of the restored state are armed." : string.Empty;
+        sb.AppendLine($"    /// <summary>");
+        sb.AppendLine($"    /// Creates the machine in <paramref name=\"state\"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.{timerNote}");
+        if (!m.CompositeStates.IsEmpty)
+            sb.AppendLine($"    /// A composite state starts with its sub-machine in the sub-machine's initial state.");
+        sb.AppendLine($"    /// </summary>");
+        sb.AppendLine($"    /// <exception cref=\"System.ArgumentOutOfRangeException\"><paramref name=\"state\"/> is not a declared state, or is not reachable from <c>{m.InitialState}</c>.</exception>");
+        sb.AppendLine($"    public static {self} Restore({st} state)");
+        sb.AppendLine($"    {{");
+        WriteRestoreStateCheck(sb, m, "state", "state", st);
+        sb.AppendLine($"        var machine = new {self}();");
+        sb.AppendLine($"        machine.ResetTo(state);");
+        sb.AppendLine($"        return machine;");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
+
+        // One overload per distinct sub-state type: two composites over the same sub-state type
+        // share it, and its signature could not be declared twice.
+        var bySubState = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<CompositeStateModel>>(StringComparer.Ordinal);
+        foreach (var c in m.CompositeStates)
+        {
+            if (!bySubState.TryGetValue(c.SubMachineStateTypeFqn, out var list))
+                bySubState[c.SubMachineStateTypeFqn] = list = new System.Collections.Generic.List<CompositeStateModel>();
+            list.Add(c);
+        }
+
+        foreach (var entry in bySubState)
+            WriteSubStateRestore(sb, m, entry.Key, entry.Value);
+    }
+
+    private static void WriteSubStateRestore(StringBuilder sb, StateMachineModel m, string subSt,
+        System.Collections.Generic.List<CompositeStateModel> group)
+    {
+        var st = m.StateTypeFqn;
+        var self = m.Declaration!.SelfType;
+        {
+            sb.AppendLine($"    /// <summary>");
+            sb.AppendLine($"    /// Creates the machine in the composite state <paramref name=\"state\"/> with its sub-machine in <paramref name=\"subState\"/>.");
+            sb.AppendLine($"    /// Fires no OnExit or OnEnter.");
+            sb.AppendLine($"    /// </summary>");
+            sb.AppendLine($"    /// <exception cref=\"System.ArgumentOutOfRangeException\"><paramref name=\"state\"/> is not a restorable state, or <paramref name=\"subState\"/> is not a restorable state of its sub-machine.</exception>");
+            sb.AppendLine($"    /// <exception cref=\"System.ArgumentException\"><paramref name=\"state\"/> is not a composite state with a sub-machine over this sub-state type.</exception>");
+            sb.AppendLine($"    public static {self} Restore({st} state, {subSt} subState)");
+            sb.AppendLine($"    {{");
+            WriteRestoreStateCheck(sb, m, "state", "state", st);
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var c in group)
+                sb.AppendLine($"            case {st}.{c.State}:");
+            sb.AppendLine($"                break;");
+            sb.AppendLine($"            default:");
+            sb.AppendLine($"                throw new System.ArgumentException(\"The state is not a composite state with a sub-machine over {subSt.Replace("global::", string.Empty)}.\", nameof(state));");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var c in group)
+            {
+                sb.AppendLine($"            case {st}.{c.State}:");
+                sb.AppendLine($"                if (!{c.SubMachineFqn}.IsRestorableState(subState))");
+                sb.AppendLine($"                    throw new System.ArgumentOutOfRangeException(nameof(subState), subState, \"The sub-state is not a state of the sub-machine of {c.State}, or is not reachable from its initial state.\");");
+                sb.AppendLine($"                break;");
+            }
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+            sb.AppendLine($"        var machine = new {self}();");
+            sb.AppendLine($"        machine.ResetTo(state);");
+            sb.AppendLine($"        switch (state)");
+            sb.AppendLine($"        {{");
+            foreach (var c in group)
+                sb.AppendLine($"            case {st}.{c.State}: machine._subFsm_{c.State}.ResetTo(subState); break;");
+            sb.AppendLine($"        }}");
+            sb.AppendLine();
+            sb.AppendLine($"        return machine;");
+            sb.AppendLine($"    }}");
+            sb.AppendLine();
+        }
+    }
+
+    private static void WriteRestoreStateCheck(StringBuilder sb, StateMachineModel m, string param, string value, string st)
+    {
+        sb.AppendLine($"        if (!IsRestorableState({value}))");
+        sb.AppendLine($"            throw new System.ArgumentOutOfRangeException(nameof({param}), {value}, \"The value is not a declared state of {m.StateTypeShort} that is reachable from {m.InitialState}.\");");
+        sb.AppendLine();
+    }
+
     private static void WriteConcurrentPartialStubs(StringBuilder sb, StateMachineModel m)
     {
         var st = m.StateTypeFqn;
@@ -578,7 +720,7 @@ internal static class StateMachineWriter
         var st = m.StateTypeFqn;
 
         sb.AppendLine();
-        sb.AppendLine($"    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>");
+        sb.AppendLine($"    /// <summary>Arms timers for any timed edges whose From state matches the current state, and disarms those of every other state.</summary>");
         sb.AppendLine($"    private void ArmInitialStateTimers()");
         sb.AppendLine($"    {{");
         sb.AppendLine($"        var current = Current;");
@@ -601,6 +743,12 @@ internal static class StateMachineWriter
             sb.AppendLine($"                if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();");
             sb.AppendLine($"            }}");
             sb.AppendLine($"            __t.Change({t.AfterMs}, System.Threading.Timeout.Infinite);");
+            sb.AppendLine($"        }}");
+            // A timer armed for an earlier state, such as the initial state's by the constructor,
+            // must not fire once the machine is set to another.
+            sb.AppendLine($"        else");
+            sb.AppendLine($"        {{");
+            sb.AppendLine($"            {field}?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);");
             sb.AppendLine($"        }}");
         }
 

@@ -45,6 +45,33 @@ partial class LoadingFsm
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Fetching</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.LoadingState state)
+    {
+        switch (state)
+        {
+            case global::MyApp.LoadingState.Fetching:
+            case global::MyApp.LoadingState.Parsing:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Fetching</c>.</exception>
+    public static LoadingFsm Restore(global::MyApp.LoadingState state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of LoadingState that is reachable from Fetching.");
+
+        var machine = new LoadingFsm();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.LoadingState state, global::MyApp.Trigger trigger)
     {
         switch (state)

@@ -51,6 +51,7 @@ machine.Current;                 // Pending
 | [Composite States](core-concepts/composite-states.md) | Hierarchical sub-FSMs, dispatch order, shallow history |
 | [Timeout Transitions](core-concepts/timeout-transitions.md) | `AfterMs` edges, lazy timers, race-safe CAS, `IDisposable` |
 | [Concurrent Parts](core-concepts/concurrent-parts.md) | Multiple independent FSMs in one class via `[StateMachineGroup]` |
+| [Persistence](core-concepts/persistence.md) | `Restore(state)` rebuilds a persisted state: validated, no hooks, timers armed |
 | [Diagram Export](core-concepts/diagram-export.md) | `Diagram = true` emits a Mermaid `stateDiagram-v2` `const string` |
 
 ### Guides
@@ -92,3 +93,5 @@ machine.Current;                 // Pending
 | [ZSM0024](diagnostics/ZSM0024.md) | Error | File-local state machine |
 | [ZSM0025](diagnostics/ZSM0025.md) | Error | Name differs only in case from another state machine |
 | [ZSM0026](diagnostics/ZSM0026.md) | Warning | Copies of a timed record share its timers |
+| [ZSM0027](diagnostics/ZSM0027.md) | Info | `Restore` not generated: no parameterless constructor |
+| [ZSM0028](diagnostics/ZSM0028.md) | Info | `Restore` not generated: conflicting member |

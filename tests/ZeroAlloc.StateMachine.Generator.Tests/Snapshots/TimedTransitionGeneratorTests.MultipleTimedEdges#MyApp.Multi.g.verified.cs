@@ -90,6 +90,34 @@ partial class Multi : System.IDisposable
         ArmInitialStateTimers();
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>A</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.MS state)
+    {
+        switch (state)
+        {
+            case global::MyApp.MS.A:
+            case global::MyApp.MS.B:
+            case global::MyApp.MS.C:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter. Timers of the restored state are armed.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>A</c>.</exception>
+    public static Multi Restore(global::MyApp.MS state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of MS that is reachable from A.");
+
+        var machine = new Multi();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.MS state, global::MyApp.MT trigger)
     {
         switch (state)
@@ -134,7 +162,7 @@ partial class Multi : System.IDisposable
         System.GC.SuppressFinalize(this);
     }
 
-    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>
+    /// <summary>Arms timers for any timed edges whose From state matches the current state, and disarms those of every other state.</summary>
     private void ArmInitialStateTimers()
     {
         var current = Current;
@@ -151,6 +179,10 @@ partial class Multi : System.IDisposable
             }
             __t.Change(1000, System.Threading.Timeout.Infinite);
         }
+        else
+        {
+            _timer_A_ToB?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+        }
         if (current == global::MyApp.MS.B)
         {
             var __t = _timer_B_ToC;
@@ -163,6 +195,10 @@ partial class Multi : System.IDisposable
                 if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
             }
             __t.Change(2000, System.Threading.Timeout.Infinite);
+        }
+        else
+        {
+            _timer_B_ToC?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
         }
     }
 

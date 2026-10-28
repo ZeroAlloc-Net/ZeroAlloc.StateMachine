@@ -75,6 +75,109 @@ partial class Machine
         }
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Idle</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.Outer state)
+    {
+        switch (state)
+        {
+            case global::MyApp.Outer.Idle:
+            case global::MyApp.Outer.Connecting:
+            case global::MyApp.Outer.Authenticated:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// A composite state starts with its sub-machine in the sub-machine's initial state.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Idle</c>.</exception>
+    public static Machine Restore(global::MyApp.Outer state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of Outer that is reachable from Idle.");
+
+        var machine = new Machine();
+        machine.ResetTo(state);
+        return machine;
+    }
+
+    /// <summary>
+    /// Creates the machine in the composite state <paramref name="state"/> with its sub-machine in <paramref name="subState"/>.
+    /// Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a restorable state, or <paramref name="subState"/> is not a restorable state of its sub-machine.</exception>
+    /// <exception cref="System.ArgumentException"><paramref name="state"/> is not a composite state with a sub-machine over this sub-state type.</exception>
+    public static Machine Restore(global::MyApp.Outer state, global::MyApp.Conn subState)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of Outer that is reachable from Idle.");
+
+        switch (state)
+        {
+            case global::MyApp.Outer.Connecting:
+                break;
+            default:
+                throw new System.ArgumentException("The state is not a composite state with a sub-machine over MyApp.Conn.", nameof(state));
+        }
+
+        switch (state)
+        {
+            case global::MyApp.Outer.Connecting:
+                if (!global::MyApp.ConnFsm.IsRestorableState(subState))
+                    throw new System.ArgumentOutOfRangeException(nameof(subState), subState, "The sub-state is not a state of the sub-machine of Connecting, or is not reachable from its initial state.");
+                break;
+        }
+
+        var machine = new Machine();
+        machine.ResetTo(state);
+        switch (state)
+        {
+            case global::MyApp.Outer.Connecting: machine._subFsm_Connecting.ResetTo(subState); break;
+        }
+
+        return machine;
+    }
+
+    /// <summary>
+    /// Creates the machine in the composite state <paramref name="state"/> with its sub-machine in <paramref name="subState"/>.
+    /// Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a restorable state, or <paramref name="subState"/> is not a restorable state of its sub-machine.</exception>
+    /// <exception cref="System.ArgumentException"><paramref name="state"/> is not a composite state with a sub-machine over this sub-state type.</exception>
+    public static Machine Restore(global::MyApp.Outer state, global::MyApp.Auth subState)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of Outer that is reachable from Idle.");
+
+        switch (state)
+        {
+            case global::MyApp.Outer.Authenticated:
+                break;
+            default:
+                throw new System.ArgumentException("The state is not a composite state with a sub-machine over MyApp.Auth.", nameof(state));
+        }
+
+        switch (state)
+        {
+            case global::MyApp.Outer.Authenticated:
+                if (!global::MyApp.AuthFsm.IsRestorableState(subState))
+                    throw new System.ArgumentOutOfRangeException(nameof(subState), subState, "The sub-state is not a state of the sub-machine of Authenticated, or is not reachable from its initial state.");
+                break;
+        }
+
+        var machine = new Machine();
+        machine.ResetTo(state);
+        switch (state)
+        {
+            case global::MyApp.Outer.Authenticated: machine._subFsm_Authenticated.ResetTo(subState); break;
+        }
+
+        return machine;
+    }
+
     private void OnExit(global::MyApp.Outer state, global::MyApp.T trigger)
     {
         switch (state)

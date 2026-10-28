@@ -280,16 +280,19 @@ When the parent exits `X` (a parent-level transition fires `From = X`):
 - Otherwise, no history is recorded.
 
 `Reset` and `ResetTo` are marked `internal` because consumer code should not be
-positioning state machines outside of declared transitions. If you find yourself
-wanting to call them from application code, your model probably has a missing
-transition — file an issue describing the case before reaching for them via
-`InternalsVisibleTo`.
+positioning state machines outside of declared transitions, and `ResetTo` does not
+validate its argument. To rebuild a machine from a persisted state, call the generated
+public `Restore` method instead, which validates the state and also accepts the sub-state
+of a composite. See [Persistence](persistence.md). If you want to reach a state some
+other way than by firing triggers, your model probably has a missing transition, so file
+an issue describing the case.
 
 ---
 
 ## Related
 
 - [States and Triggers](states-and-triggers.md) — the underlying enum-based model
+- [Persistence](persistence.md) — `Restore(state, subState)` rebuilds a composite state
 - [Transitions](transitions.md) — how `TryFire` evaluates the parent's switch arms
 - [Concurrent Mode](concurrent-mode.md) — why composites are incompatible
 - [Attribute Reference](../attributes.md) — `[CompositeState]` and `[HistoryState]` signatures

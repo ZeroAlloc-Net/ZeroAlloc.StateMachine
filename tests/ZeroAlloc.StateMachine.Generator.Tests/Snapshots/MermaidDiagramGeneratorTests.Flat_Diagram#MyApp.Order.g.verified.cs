@@ -48,6 +48,34 @@ partial class Order
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Idle</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.OS state)
+    {
+        switch (state)
+        {
+            case global::MyApp.OS.Idle:
+            case global::MyApp.OS.Submitted:
+            case global::MyApp.OS.Shipped:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Idle</c>.</exception>
+    public static Order Restore(global::MyApp.OS state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of OS that is reachable from Idle.");
+
+        var machine = new Order();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.OS state, global::MyApp.OT trigger)
     {
         switch (state)

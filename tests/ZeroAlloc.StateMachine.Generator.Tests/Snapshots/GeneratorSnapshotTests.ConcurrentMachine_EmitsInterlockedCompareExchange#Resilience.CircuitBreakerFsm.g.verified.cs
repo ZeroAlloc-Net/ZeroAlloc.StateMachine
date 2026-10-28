@@ -57,6 +57,34 @@ partial class CircuitBreakerFsm
         _state = (long)state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Closed</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::Resilience.CbState state)
+    {
+        switch (state)
+        {
+            case global::Resilience.CbState.Closed:
+            case global::Resilience.CbState.Open:
+            case global::Resilience.CbState.HalfOpen:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter. Timers of the restored state are armed.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Closed</c>.</exception>
+    public static CircuitBreakerFsm Restore(global::Resilience.CbState state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of CbState that is reachable from Closed.");
+
+        var machine = new CircuitBreakerFsm();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::Resilience.CbState state, global::Resilience.CbTrigger trigger)
     {
         switch (state)
