@@ -176,4 +176,63 @@ partial class DeviceTimed : System.IDisposable
     {
         HookConstructor();
     }
+
+    /// <summary>The state of every part of this group, for persisting it and restoring it with <c>Restore</c>.</summary>
+    public readonly record struct GroupState(global::MyApp.OpState Operational, global::MyApp.ConnState Connection);
+
+    /// <summary>The current state of every part. Each part is read on its own, so the parts are not read as one atomic snapshot while other threads fire triggers.</summary>
+    public GroupState CurrentState => new GroupState(
+        OperationalCurrent,
+        ConnectionCurrent);
+
+    private static bool IsRestorableOperationalState(global::MyApp.OpState state)
+    {
+        switch (state)
+        {
+            case global::MyApp.OpState.Idle:
+            case global::MyApp.OpState.Running:
+            case global::MyApp.OpState.Faulted:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsRestorableConnectionState(global::MyApp.ConnState state)
+    {
+        switch (state)
+        {
+            case global::MyApp.ConnState.Disconnected:
+            case global::MyApp.ConnState.Connected:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private readonly struct __RestoreMarker { }
+
+    /// <summary>Used by Restore only: creates the group without arming any timer.</summary>
+    private DeviceTimed(__RestoreMarker _)
+    {
+    }
+
+    /// <summary>
+    /// Creates the group with every part in the state of <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// Timers of each part's restored state are armed.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException">A part's state is not a declared state, or is not reachable from the part's initial state.</exception>
+    public static DeviceTimed Restore(GroupState state)
+    {
+        if (!IsRestorableOperationalState(state.Operational))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state.Operational, "The state of part Operational is not a declared state of OpState that is reachable from Idle.");
+        if (!IsRestorableConnectionState(state.Connection))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state.Connection, "The state of part Connection is not a declared state of ConnState that is reachable from Disconnected.");
+
+        var group = new DeviceTimed(default(__RestoreMarker));
+        group._state_Operational = (long)state.Operational;
+        group._state_Connection = (long)state.Connection;
+        group.ArmInitialStateTimers_Operational();
+        return group;
+    }
 }

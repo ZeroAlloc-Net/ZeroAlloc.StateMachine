@@ -131,7 +131,10 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         if (hostDiagnostic is not null)
             diagnostics.Add(hostDiagnostic);
         else
+        {
             AnalyzeGroupDiagnostics(type, groupAttr, parts, diagram, diagnostics);
+            AnalyzeGroupRestore(type, parts, hostLocation, diagnostics);
+        }
         var declaration = hostDiagnostic is null ? HostDeclaration.For(type) : null;
 
         return new StateMachineGroupModel(
@@ -788,6 +791,46 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         }
 
         var reason = RestoreConstructorProblem(type, hasTimed);
+        if (reason is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.RestoreNeedsParameterlessConstructor, hostLocation, type.Name, reason));
+        }
+    }
+
+    // ZSM0027 and ZSM0028 for a group: the generated nested GroupState record, CurrentState and
+    // static Restore. A member named GroupState or CurrentState, a non-method member named
+    // Restore, or a method named Restore with one parameter conflicts with them.
+    private static void AnalyzeGroupRestore(
+        INamedTypeSymbol type,
+        ImmutableArray<StateMachinePartModel> parts,
+        Location hostLocation,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        if (parts.IsEmpty) return;
+
+        foreach (var member in type.GetMembers())
+        {
+            if (member.IsImplicitlyDeclared) continue;
+
+            var name = member.Name;
+            var conflicts = string.Equals(name, "GroupState", StringComparison.Ordinal)
+                || string.Equals(name, "CurrentState", StringComparison.Ordinal)
+                || (string.Equals(name, "Restore", StringComparison.Ordinal)
+                    && (member is not IMethodSymbol method || method.Parameters.Length == 1));
+            if (!conflicts) continue;
+
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.RestoreNameCollision,
+                member.Locations.FirstOrDefault(static l => l.IsInSource) ?? hostLocation,
+                type.Name));
+            return;
+        }
+
+        var hasTimed = parts.Any(static p => p.Transitions.Any(static t => t.AfterMs > 0));
+        var reason = type.TypeKind == TypeKind.Struct
+            ? "it is a struct, and Restore needs to create it with 'new T()' and a constructor that arms no timer"
+            : RestoreConstructorProblem(type, hasTimed);
         if (reason is not null)
         {
             diagnostics.Add(DiagnosticInfo.Create(
