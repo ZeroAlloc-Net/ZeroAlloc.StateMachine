@@ -103,8 +103,9 @@ public partial record M(int X)
 ");
 
         run.Errors.Should().BeEmpty();
-        // No ZSM0021. The only diagnostic is ZSM0026, the warning every timed record gets.
-        run.GeneratorDiagnostics.Select(static d => d.Id).Should().Equal("ZSM0026");
+        // No ZSM0021. ZSM0026 is the warning every timed record gets. ZSM0027 says Restore is left
+        // out: it needs a constructor that arms no timer, which cannot chain to a primary constructor.
+        run.GeneratorDiagnostics.Select(static d => d.Id).Should().BeEquivalentTo(new[] { "ZSM0026", "ZSM0027" });
     }
 
     [Fact]

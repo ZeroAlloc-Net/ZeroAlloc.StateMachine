@@ -540,6 +540,8 @@ internal static class StateMachineWriter
 
         if (!CanRestore(m)) return;
 
+        WriteRestoreMarkerConstructor(sb, m);
+
         var timerNote = m.Concurrent ? " Timers of the restored state are armed." : string.Empty;
         sb.AppendLine($"    /// <summary>");
         sb.AppendLine($"    /// Creates the machine in <paramref name=\"state\"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.{timerNote}");
@@ -550,7 +552,7 @@ internal static class StateMachineWriter
         sb.AppendLine($"    public static {self} Restore({st} state)");
         sb.AppendLine($"    {{");
         WriteRestoreStateCheck(sb, m, "state", "state", st);
-        sb.AppendLine($"        var machine = new {self}();");
+        sb.AppendLine($"        var machine = {NewForRestore(m)};");
         sb.AppendLine($"        machine.ResetTo(state);");
         sb.AppendLine($"        return machine;");
         sb.AppendLine($"    }}");
@@ -605,7 +607,7 @@ internal static class StateMachineWriter
             }
             sb.AppendLine($"        }}");
             sb.AppendLine();
-            sb.AppendLine($"        var machine = new {self}();");
+            sb.AppendLine($"        var machine = {NewForRestore(m)};");
             sb.AppendLine($"        machine.ResetTo(state);");
             sb.AppendLine($"        switch (state)");
             sb.AppendLine($"        {{");
@@ -617,6 +619,30 @@ internal static class StateMachineWriter
             sb.AppendLine($"    }}");
             sb.AppendLine();
         }
+    }
+
+    // The constructors of a timed machine arm the initial state's timer, and a timer that fires
+    // between construction and the restored state being set would run a transition of the initial
+    // state. Restore therefore builds the machine through a private constructor that arms nothing;
+    // ResetTo then arms the timers of the restored state. Field initializers still run.
+    private static bool UsesMarkerConstructor(StateMachineModel m) => HasAnyTimedEdge(m) && !m.IsStruct;
+
+    private static string NewForRestore(StateMachineModel m) =>
+        UsesMarkerConstructor(m)
+            ? $"new {m.Declaration!.SelfType}(default(__RestoreMarker))"
+            : $"new {m.Declaration!.SelfType}()";
+
+    private static void WriteRestoreMarkerConstructor(StringBuilder sb, StateMachineModel m)
+    {
+        if (!UsesMarkerConstructor(m)) return;
+
+        sb.AppendLine($"    private readonly struct __RestoreMarker {{ }}");
+        sb.AppendLine();
+        sb.AppendLine($"    /// <summary>Used by Restore only: creates the machine without arming any timer.</summary>");
+        sb.AppendLine($"    private {m.Declaration!.Name}(__RestoreMarker _)");
+        sb.AppendLine($"    {{");
+        sb.AppendLine($"    }}");
+        sb.AppendLine();
     }
 
     private static void WriteRestoreStateCheck(StringBuilder sb, StateMachineModel m, string param, string value, string st)

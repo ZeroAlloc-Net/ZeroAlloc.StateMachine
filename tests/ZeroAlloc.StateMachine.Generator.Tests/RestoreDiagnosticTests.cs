@@ -125,4 +125,50 @@ public partial class M { }");
         source.Should().Contain("case global::N.S.A:").And.Contain("case global::N.S.B:");
         source.Should().NotContain("case global::N.S.Orphan:");
     }
+
+    private const string TimedAttrs = @"
+[StateMachine(InitialState = nameof(S.A), Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, AfterMs = 100)]
+[Terminal<S>(State = S.B)]
+";
+
+    [Fact]
+    public void TimedMachine_RestoresThroughAPrivateConstructorThatArmsNoTimer()
+    {
+        var run = GeneratorRunner.Run(Header + TimedAttrs + "public partial class M { }");
+
+        run.GeneratorDiagnostics.Should().BeEmpty();
+        run.CompilationErrors.Should().BeEmpty();
+        var source = run.Source("N.M.g.cs");
+        source.Should().Contain("private M(__RestoreMarker _)");
+        source.Should().Contain("new M(default(__RestoreMarker))");
+    }
+
+    [Fact]
+    public void TimedMachineWithAPrimaryConstructor_ReportsZsm0027()
+    {
+        var run = GeneratorRunner.Run(Header + TimedAttrs + "public partial class M(int x) { public M() : this(0) { HookConstructor(); } }");
+
+        run.GeneratorDiagnostics.Should().ContainSingle().Which.Id.Should().Be("ZSM0027");
+        run.CompilationErrors.Should().BeEmpty();
+        run.Source("N.M.g.cs").Should().NotContain(" Restore(");
+    }
+
+    [Fact]
+    public void TimedMachineWithABaseClassNeedingArguments_ReportsZsm0027()
+    {
+        var run = GeneratorRunner.Run(Header +
+            "public class B { public B(int x) { } }" + TimedAttrs + "public partial class M : B { public M() : base(0) { HookConstructor(); } }");
+
+        run.GeneratorDiagnostics.Should().ContainSingle().Which.Id.Should().Be("ZSM0027");
+        run.CompilationErrors.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void NonTimedMachine_UsesNoMarkerConstructor()
+    {
+        var run = GeneratorRunner.Run(Header + Attrs + "public partial class M { }");
+
+        run.Source("N.M.g.cs").Should().NotContain("__RestoreMarker");
+    }
 }

@@ -92,6 +92,13 @@ partial class OrderMachine<TOrder> : System.IDisposable
         }
     }
 
+    private readonly struct __RestoreMarker { }
+
+    /// <summary>Used by Restore only: creates the machine without arming any timer.</summary>
+    private OrderMachine(__RestoreMarker _)
+    {
+    }
+
     /// <summary>
     /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter. Timers of the restored state are armed.
     /// </summary>
@@ -101,7 +108,7 @@ partial class OrderMachine<TOrder> : System.IDisposable
         if (!IsRestorableState(state))
             throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of State that is reachable from Idle.");
 
-        var machine = new OrderMachine<TOrder>();
+        var machine = new OrderMachine<TOrder>(default(__RestoreMarker));
         machine.ResetTo(state);
         return machine;
     }
