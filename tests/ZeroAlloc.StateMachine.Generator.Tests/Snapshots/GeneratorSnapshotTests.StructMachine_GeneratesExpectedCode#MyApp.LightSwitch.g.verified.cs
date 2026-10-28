@@ -51,6 +51,33 @@ partial struct LightSwitch
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Off</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.State state)
+    {
+        switch (state)
+        {
+            case global::MyApp.State.Off:
+            case global::MyApp.State.On:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Off</c>.</exception>
+    public static LightSwitch Restore(global::MyApp.State state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of State that is reachable from Off.");
+
+        var machine = new LightSwitch();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.State state, global::MyApp.Trigger trigger)
     {
         switch (state)

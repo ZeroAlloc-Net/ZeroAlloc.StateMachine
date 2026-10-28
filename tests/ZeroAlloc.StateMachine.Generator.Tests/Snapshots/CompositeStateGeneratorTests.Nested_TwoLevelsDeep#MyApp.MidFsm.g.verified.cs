@@ -65,6 +65,71 @@ partial class MidFsm
         }
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>X</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.L2 state)
+    {
+        switch (state)
+        {
+            case global::MyApp.L2.X:
+            case global::MyApp.L2.Y:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// A composite state starts with its sub-machine in the sub-machine's initial state.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>X</c>.</exception>
+    public static MidFsm Restore(global::MyApp.L2 state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of L2 that is reachable from X.");
+
+        var machine = new MidFsm();
+        machine.ResetTo(state);
+        return machine;
+    }
+
+    /// <summary>
+    /// Creates the machine in the composite state <paramref name="state"/> with its sub-machine in <paramref name="subState"/>.
+    /// Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a restorable state, or <paramref name="subState"/> is not a restorable state of its sub-machine.</exception>
+    /// <exception cref="System.ArgumentException"><paramref name="state"/> is not a composite state with a sub-machine over this sub-state type.</exception>
+    public static MidFsm Restore(global::MyApp.L2 state, global::MyApp.L3 subState)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of L2 that is reachable from X.");
+
+        switch (state)
+        {
+            case global::MyApp.L2.X:
+                break;
+            default:
+                throw new System.ArgumentException("The state is not a composite state with a sub-machine over MyApp.L3.", nameof(state));
+        }
+
+        switch (state)
+        {
+            case global::MyApp.L2.X:
+                if (!global::MyApp.LeafFsm.IsRestorableState(subState))
+                    throw new System.ArgumentOutOfRangeException(nameof(subState), subState, "The sub-state is not a state of the sub-machine of X, or is not reachable from its initial state.");
+                break;
+        }
+
+        var machine = new MidFsm();
+        machine.ResetTo(state);
+        switch (state)
+        {
+            case global::MyApp.L2.X: machine._subFsm_X.ResetTo(subState); break;
+        }
+
+        return machine;
+    }
+
     private void OnExit(global::MyApp.L2 state, global::MyApp.Trigger trigger)
     {
         switch (state)

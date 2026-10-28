@@ -45,6 +45,33 @@ partial class LeafFsm
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>P</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.L3 state)
+    {
+        switch (state)
+        {
+            case global::MyApp.L3.P:
+            case global::MyApp.L3.Q:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>P</c>.</exception>
+    public static LeafFsm Restore(global::MyApp.L3 state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of L3 that is reachable from P.");
+
+        var machine = new LeafFsm();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.L3 state, global::MyApp.Trigger trigger)
     {
         switch (state)

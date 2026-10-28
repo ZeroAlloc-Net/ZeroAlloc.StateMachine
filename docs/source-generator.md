@@ -286,6 +286,8 @@ dotnet build
 | [ZSM0024](diagnostics/ZSM0024.md) | A machine or group is `file`-local, or nested in a `file`-local type |
 | [ZSM0025](diagnostics/ZSM0025.md) | A host's file name differs only in case from another host's |
 | [ZSM0026](diagnostics/ZSM0026.md) | A `record` machine or group has timed transitions, whose timers a `with` copy shares |
+| [ZSM0027](diagnostics/ZSM0027.md) | `Restore` is not generated: the machine has no parameterless constructor |
+| [ZSM0028](diagnostics/ZSM0028.md) | `Restore` is not generated: the type declares a conflicting `Restore` member |
 
 Each ID links to its own page, with its severity, examples and fixes.
 

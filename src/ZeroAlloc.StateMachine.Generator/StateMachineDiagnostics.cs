@@ -236,4 +236,22 @@ internal static class StateMachineDiagnostics
         defaultSeverity:    DiagnosticSeverity.Warning,
         isEnabledByDefault: true,
         description:        "A record's compiler-generated copy constructor copies every field, including the timers of AfterMs transitions. A copy made with 'with' holds the same timers, whose callbacks fire on the original, and disposing the copy disposes them. Do not copy the machine with 'with', or declare it as a class.");
+
+    public static readonly DiagnosticDescriptor RestoreNeedsParameterlessConstructor = new(
+        id:                 "ZSM0027",
+        title:              "Restore is not generated: no parameterless constructor",
+        messageFormat:      "'{0}' gets no generated Restore method because {1}",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description:        "The generated static Restore method creates the machine with 'new T()' and then sets its state, so a class machine needs a parameterless constructor, which a primary constructor or any other declared constructor takes away, and it must not be abstract. Add a parameterless constructor to get Restore. The machine itself is still generated.");
+
+    public static readonly DiagnosticDescriptor RestoreNameCollision = new(
+        id:                 "ZSM0028",
+        title:              "Restore is not generated: the type declares a conflicting member",
+        messageFormat:      "'{0}' gets no generated Restore method because it already declares a member named 'Restore' that conflicts with it",
+        category:           "ZeroAlloc.StateMachine",
+        defaultSeverity:    DiagnosticSeverity.Info,
+        isEnabledByDefault: true,
+        description:        "The generator emits public static Restore(TState), and Restore(TState, TSubState) for a composite state. A member named Restore that is not a method, or a method whose first parameter is the state type and which has one or two parameters, would conflict with it, so the generator emits none and leaves your member alone. Rename your member to get the generated Restore. The machine itself is still generated.");
 }

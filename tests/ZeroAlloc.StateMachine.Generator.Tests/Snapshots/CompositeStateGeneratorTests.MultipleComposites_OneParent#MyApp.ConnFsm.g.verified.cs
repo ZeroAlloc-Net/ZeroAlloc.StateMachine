@@ -45,6 +45,33 @@ partial class ConnFsm
         _state = state;
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Resolving</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.Conn state)
+    {
+        switch (state)
+        {
+            case global::MyApp.Conn.Resolving:
+            case global::MyApp.Conn.Handshaking:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Resolving</c>.</exception>
+    public static ConnFsm Restore(global::MyApp.Conn state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of Conn that is reachable from Resolving.");
+
+        var machine = new ConnFsm();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.Conn state, global::MyApp.T trigger)
     {
         switch (state)

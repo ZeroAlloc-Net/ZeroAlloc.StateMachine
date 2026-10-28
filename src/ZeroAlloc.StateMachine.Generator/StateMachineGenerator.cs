@@ -494,7 +494,8 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         else
             AnalyzeDiagnostics(initialState, transitions, terminalStates, historyStates,
                 stateTypeShort ?? string.Empty, triggerTypeFqn ?? string.Empty, triggerTypeShort ?? string.Empty,
-                type, smAttr, isStruct, concurrent, diagram, diagnostics);
+                type, smAttr, isStruct, concurrent, diagram, diagnostics,
+                stateTypeFqn ?? string.Empty, hostLocation);
 
         var subMachines = hostDiagnostic is null && diagram && !compositeStates.IsEmpty
             ? CollectSubMachines(type)
@@ -718,7 +719,9 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         bool isStruct,
         bool concurrent,
         bool diagram,
-        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics,
+        string stateTypeFqn,
+        Location hostLocation)
     {
         // ZSM0004: at the Concurrent argument a struct cannot honour
         if (isStruct && concurrent)
@@ -750,9 +753,62 @@ public sealed class StateMachineGenerator : IIncrementalGenerator
         AnalyzeDisposeConflict(type, transitions, diagnostics);
         AnalyzeEmptyDiagramRequest(diagram, transitions, type, smAttr, diagnostics);
         AnalyzeGuardsOnConcurrentMachine(type, concurrent, diagnostics);
+        AnalyzeRestore(type, stateTypeFqn, hostLocation, diagnostics);
 
         var hasTimed = transitions.Any(static t => t.AfterMs > 0);
         AnalyzeMissingHookConstructorInvocation(type, hasTimed, diagnostics);
+    }
+
+    // ZSM0027 and ZSM0028: the generated static Restore cannot be emitted. Both are informational:
+    // the machine is generated either way, only Restore is left out, so a type that compiled before
+    // Restore existed keeps compiling, whatever constructors or members it declares.
+    private static void AnalyzeRestore(
+        INamedTypeSymbol type,
+        string stateTypeFqn,
+        Location hostLocation,
+        ImmutableArray<DiagnosticInfo>.Builder diagnostics)
+    {
+        foreach (var member in type.GetMembers("Restore"))
+        {
+            if (member.IsImplicitlyDeclared) continue;
+
+            var conflicts = member is not IMethodSymbol method
+                || (method.Parameters.Length is 1 or 2
+                    && string.Equals(
+                        method.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+                        stateTypeFqn, StringComparison.Ordinal));
+            if (!conflicts) continue;
+
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.RestoreNameCollision,
+                member.Locations.FirstOrDefault(static l => l.IsInSource) ?? hostLocation,
+                type.Name));
+            return;
+        }
+
+        var reason = RestoreConstructorProblem(type);
+        if (reason is not null)
+        {
+            diagnostics.Add(DiagnosticInfo.Create(
+                StateMachineDiagnostics.RestoreNeedsParameterlessConstructor, hostLocation, type.Name, reason));
+        }
+    }
+
+    private static string? RestoreConstructorProblem(INamedTypeSymbol type)
+    {
+        if (type.IsAbstract) return "it is abstract, so 'new T()' cannot create it";
+
+        var (hasUserCtor, hasUserParameterlessCtor) = UserConstructors(type);
+        if (hasUserParameterlessCtor) return null;
+
+        // A struct without a declared constructor has the implicit or generated parameterless one.
+        // A primary constructor replaces it: `new T()` then skips the field initializers.
+        if (type.TypeKind == TypeKind.Struct)
+            return HasPrimaryConstructor(type)
+                ? "it has a primary constructor and no parameterless constructor that chains to it"
+                : null;
+
+        return hasUserCtor ? "it declares constructors but no parameterless one" : null;
     }
 
     // ZSM0022: When = true on a concurrent machine. The writer emits no guard for it, so the

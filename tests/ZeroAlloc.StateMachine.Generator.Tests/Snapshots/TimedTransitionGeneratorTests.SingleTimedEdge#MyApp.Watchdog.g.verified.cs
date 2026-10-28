@@ -74,6 +74,34 @@ partial class Watchdog : System.IDisposable
         ArmInitialStateTimers();
     }
 
+    /// <summary>Whether <paramref name="state"/> is a declared state reachable from <c>Idle</c>, and so a valid argument to <c>Restore</c>.</summary>
+    internal static bool IsRestorableState(global::MyApp.WdState state)
+    {
+        switch (state)
+        {
+            case global::MyApp.WdState.Idle:
+            case global::MyApp.WdState.Working:
+            case global::MyApp.WdState.Dead:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Creates the machine in <paramref name="state"/>, for rebuilding a persisted state. Fires no OnExit or OnEnter. Timers of the restored state are armed.
+    /// </summary>
+    /// <exception cref="System.ArgumentOutOfRangeException"><paramref name="state"/> is not a declared state, or is not reachable from <c>Idle</c>.</exception>
+    public static Watchdog Restore(global::MyApp.WdState state)
+    {
+        if (!IsRestorableState(state))
+            throw new System.ArgumentOutOfRangeException(nameof(state), state, "The value is not a declared state of WdState that is reachable from Idle.");
+
+        var machine = new Watchdog();
+        machine.ResetTo(state);
+        return machine;
+    }
+
     private void OnExit(global::MyApp.WdState state, global::MyApp.WdTrigger trigger)
     {
         switch (state)
@@ -111,7 +139,7 @@ partial class Watchdog : System.IDisposable
         System.GC.SuppressFinalize(this);
     }
 
-    /// <summary>Arms timers for any timed edges whose From state matches the current state.</summary>
+    /// <summary>Arms timers for any timed edges whose From state matches the current state, and disarms those of every other state.</summary>
     private void ArmInitialStateTimers()
     {
         var current = Current;
@@ -127,6 +155,10 @@ partial class Watchdog : System.IDisposable
                 if (!System.Object.ReferenceEquals(__t, __new)) __new.Dispose();
             }
             __t.Change(5000, System.Threading.Timeout.Infinite);
+        }
+        else
+        {
+            _timer_Working_Timeout?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
         }
     }
 

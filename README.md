@@ -20,7 +20,7 @@ are a generated `switch`, 0 B per transition and NativeAOT-ready.
 - **Works under NativeAOT and trimming.** No reflection; every PR publishes an AOT sample with
   `PublishAot=true`.
 - **Compile-time diagnostics instead of runtime surprises.** An unreachable state, a state with no way
-  out or a likely trigger typo is reported at build time, from `ZSM0001` to `ZSM0026`.
+  out or a likely trigger typo is reported at build time, from `ZSM0001` to `ZSM0028`.
 
 ## Install
 
