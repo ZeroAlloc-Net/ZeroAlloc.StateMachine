@@ -60,6 +60,10 @@
     <!-- Explicitly elevate public-API analyzer diagnostics so the surface
          stays locked even if TreatWarningsAsErrors is ever scoped down. -->
     <WarningsAsErrors>$(WarningsAsErrors);RS0016;RS0017</WarningsAsErrors>
+    <!-- NuGetAudit as ci-baseline runs it, so a local restore shows the same advisories as CI. -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>moderate</NuGetAuditLevel>
 
     <!-- NuGet package metadata (shared across all packable projects) -->
     <Authors>Marcel Roozekrans</Authors>
