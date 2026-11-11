@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.7.0...v1.8.0) (2026-11-11)
+
+
+### Features
+
+* add net11.0 target ([#219](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/219)) ([a37d4c1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/a37d4c1fbf4737fee654d0c6bb7bcc02bb362c09))
+
+
+### Documentation
+
+* add context7.json to claim the library on Context7 ([#216](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/216)) ([be72ae9](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/be72ae9ca50c80e640b82908c5aba783b8945224))
+
 ## [1.7.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.6.6...v1.7.0) (2026-10-28)
 
 
