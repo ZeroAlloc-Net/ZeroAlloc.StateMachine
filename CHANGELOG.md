@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.8.0...v1.8.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* embed PDBs so Go to Definition shows the package source ([#232](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/issues/232)) ([166abcb](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/166abcbc50d01229d54123c13b556b2898e85842))
+
 ## [1.8.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.7.0...v1.8.0) (2026-11-11)
 
 
