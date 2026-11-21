@@ -90,7 +90,7 @@ field; calls don't serialise against each other.
   and concurrent mode already disallows composites.
 - `When = true` on a part's transition is ignored, because parts are
   concurrent and concurrent mode generates no guards
-  ([ZSM0022](../diagnostics/ZSM0022.md), a warning).
+  ([ZSM0022](../diagnostics/ZSM0022.md), an error).
 - All parts are concurrent by construction — there is no opt-out per
   part. If you need a single-threaded part, model it as a separate
   non-group `[StateMachine]` class.

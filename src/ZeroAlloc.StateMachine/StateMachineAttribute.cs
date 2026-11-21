@@ -24,7 +24,7 @@ public sealed class StateMachineAttribute : Attribute
     /// When <c>true</c>, state is stored as a <c>volatile long</c> and transitions
     /// use <c>Interlocked.CompareExchange</c> — safe for concurrent callers.
     /// Guards are not generated in concurrent mode (TOCTOU risk); <c>When = true</c> raises
-    /// warning <c>ZSM0022</c>.
+    /// error <c>ZSM0022</c>.
     /// Default: <c>false</c>.
     /// </summary>
     public bool Concurrent { get; init; } = false;

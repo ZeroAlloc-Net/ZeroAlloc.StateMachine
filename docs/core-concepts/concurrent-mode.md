@@ -112,7 +112,7 @@ Hooks (`OnExit*`, `OnEnter*`) fire **after** the CAS succeeds, outside any lock.
 
 ## Guards and concurrent mode
 
-Guards are **not generated** when `Concurrent = true`. The generator omits guard stubs and `when` clauses in concurrent mode, so a transition declared with `When = true` fires unconditionally. The generator reports warning [ZSM0022](../diagnostics/ZSM0022.md) at every such `When = true`, so the dropped guard does not go unnoticed. The same applies to the parts of a `[StateMachineGroup]`, which are always concurrent.
+Guards are **not generated** when `Concurrent = true`. The generator omits guard stubs and `when` clauses in concurrent mode, so a transition declared with `When = true` fires unconditionally. The generator reports error [ZSM0022](../diagnostics/ZSM0022.md) at every such `When = true`, so a dropped guard fails the build instead of going unnoticed. The same applies to the parts of a `[StateMachineGroup]`, which are always concurrent.
 
 The reason is a classic TOCTOU race: checking a guard and then performing a CAS are two separate operations. Between the guard check and the CAS, another thread could change any condition the guard depends on, making the guard result stale by the time the transition fires. Emitting a guard that is inherently broken would be worse than omitting it.
 

@@ -678,7 +678,7 @@ public partial class M { }
 ";
         var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
         var zsm0022 = diags.Should().ContainSingle(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).Which;
-        Assert.Equal(DiagnosticSeverity.Warning, zsm0022.Severity);
+        Assert.Equal(DiagnosticSeverity.Error, zsm0022.Severity);
         Assert.False(zsm0022.IsSuppressed);
         Assert.True(zsm0022.Location.IsInSource);
         Assert.Equal("When = true", zsm0022.Location.SourceTree!.GetText().ToString(zsm0022.Location.SourceSpan));
@@ -687,7 +687,8 @@ public partial class M { }
             + "so this transition fires unconditionally. A guard cannot be evaluated atomically with the compare-and-swap "
             + "that commits the transition (TOCTOU race). Encode the condition as a state, or check it before calling TryFire.",
             zsm0022.GetMessage(CultureInfo.InvariantCulture));
-        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error);
+        Assert.DoesNotContain(diags, d => d.Severity == DiagnosticSeverity.Error
+            && !string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -724,7 +725,7 @@ public partial class M { }
 ";
         var diags = await TestHelper.GetDiagnostics<StateMachineGenerator>(source);
         var zsm0022 = diags.Should().ContainSingle(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).Which;
-        Assert.Equal(DiagnosticSeverity.Warning, zsm0022.Severity);
+        Assert.Equal(DiagnosticSeverity.Error, zsm0022.Severity);
         Assert.Equal("When = true", zsm0022.Location.SourceTree!.GetText().ToString(zsm0022.Location.SourceSpan));
     }
 
@@ -781,5 +782,69 @@ public partial class M { }
         // suppressed, which the compiler then leaves out of the build output.
         var zsm0022 = diags.Should().ContainSingle(d => string.Equals(d.Id, "ZSM0022", StringComparison.Ordinal)).Which;
         Assert.True(zsm0022.IsSuppressed);
+    }
+
+    [Fact]
+    public void ZSM0022_IsTheOnlyError_TheMachineIsStillGenerated()
+    {
+        // ZSM0022 is an error, but the model is complete: the machine is generated with the
+        // transition firing unconditionally, so code that uses TryFire and Current reports
+        // ZSM0022 alone, not a cascade of missing-member errors.
+        const string source = @"
+using ZeroAlloc.StateMachine;
+namespace N;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, When = true)]
+[Terminal<S>(State = S.B)]
+public partial class M { }
+public static class Use { public static bool U() { var m = new M(); return m.TryFire(T.Go) && m.Current == S.B; } }
+";
+        var run = GeneratorRunner.Run(source);
+
+        run.Errors.Should().ContainSingle().Which.Id.Should().Be("ZSM0022");
+        run.HintNames.Should().BeEquivalentTo("N.M.g.cs");
+        run.Source("N.M.g.cs").Should().NotContain("GuardGo");
+    }
+
+    [Fact]
+    public void ZSM0022_InAGroup_IsTheOnlyError_TheGroupIsStillGenerated()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+namespace N;
+public enum S { A, B } public enum T { Go }
+[StateMachineGroup]
+[StateMachinePart<S, T>(Name = ""P"", InitialState = S.A)]
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, Part = ""P"", When = true)]
+public partial class G { }
+public static class Use { public static bool U() => new G().TryFireP(T.Go); }
+";
+        var run = GeneratorRunner.Run(source);
+
+        run.Errors.Should().ContainSingle().Which.Id.Should().Be("ZSM0022");
+        run.HintNames.Should().BeEquivalentTo("N.G.Group.g.cs");
+    }
+
+    [Fact]
+    public void ZSM0022_SuppressedByPragma_BuildsTheUnguardedMachine()
+    {
+        const string source = @"
+using ZeroAlloc.StateMachine;
+namespace N;
+public enum S { A, B } public enum T { Go }
+[StateMachine(InitialState = ""A"", Concurrent = true)]
+#pragma warning disable ZSM0022
+[Transition<S, T>(From = S.A, On = T.Go, To = S.B, When = true)]
+#pragma warning restore ZSM0022
+[Terminal<S>(State = S.B)]
+public partial class M { }
+public static class Use { public static bool U() => new M().TryFire(T.Go); }
+";
+        var run = GeneratorRunner.Run(source);
+
+        run.GeneratorDiagnostics.Should().ContainSingle().Which.IsSuppressed.Should().BeTrue();
+        run.CompilationErrors.Should().BeEmpty();
+        run.HintNames.Should().BeEquivalentTo("N.M.g.cs");
     }
 }
