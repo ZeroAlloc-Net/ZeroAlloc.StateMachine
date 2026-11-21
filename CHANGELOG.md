@@ -1,5 +1,22 @@
 # Changelog
 
+## [2.0.0](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.8.1...v2.0.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* net8.0 and net9.0 assets are no longer shipped; ZSM0023, a state machine nested in a containing type that is not partial, is now an error; ZSM0022, When = true on a concurrent machine or a group part, is now an error. See the Behaviour change section of the pull request for migration steps.
+
+### Features
+
+* target net10.0 and net11.0, drop net8.0 and net9.0 ([4cec4a3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/4cec4a310ced0844474fddbb312788849b15480d))
+
+
+### Bug Fixes
+
+* report ZSM0022 as an error when When = true is ignored on a concurrent machine or a group part ([4cec4a3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/4cec4a310ced0844474fddbb312788849b15480d))
+* report ZSM0023 as an error instead of skipping generation for a nested machine silently ([4cec4a3](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/commit/4cec4a310ced0844474fddbb312788849b15480d))
+
 ## [1.8.1](https://github.com/ZeroAlloc-Net/ZeroAlloc.StateMachine/compare/v1.8.0...v1.8.1) (2026-11-16)
 
 
