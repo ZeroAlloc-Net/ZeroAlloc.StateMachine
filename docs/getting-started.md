@@ -16,7 +16,7 @@ This guide takes you from zero to a working state machine in about five minutes.
 dotnet add package ZeroAlloc.StateMachine
 ```
 
-The package ships the runtime attributes and the Roslyn source generator as a single NuGet. No separate analyzer package is needed.
+The package ships the runtime attributes and the Roslyn source generator as a single NuGet. No separate analyzer package is needed. It targets `net10.0` and `net11.0`.
 
 ---
 

@@ -85,7 +85,7 @@ If your *own* hook implementations use reflection (e.g. `JsonSerializer.Serializ
 
 | Runtime | Supported | Notes |
 |---------|-----------|-------|
-| .NET 8+ | Yes | Full support |
+| .NET 10 and .NET 11 | Yes | Full support; the package ships net10.0 and net11.0 assets |
 | .NET Native AOT | Yes | No extra configuration |
 | .NET WASM (Blazor) | Yes | Struct machines recommended |
 | .NET Framework | No | Generator requires Roslyn 4+ |

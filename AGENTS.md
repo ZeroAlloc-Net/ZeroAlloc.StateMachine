@@ -6,7 +6,7 @@ or record with `[StateMachine]` and `[Transition]`, and the generator emits `Try
 
 ## Layout
 
-- `src/ZeroAlloc.StateMachine` is the only packable project (`net8.0` to `net11.0`). The generator
+- `src/ZeroAlloc.StateMachine` is the only packable project (`net10.0` and `net11.0`). The generator
   (`src/ZeroAlloc.StateMachine.Generator`, `netstandard2.0`) has `IsPackable=false`: its DLL is copied into
   the main package under `analyzers/dotnet/cs` by the `IncludeGeneratorInPackage` target. Never publish the
   generator as its own package.

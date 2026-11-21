@@ -28,6 +28,8 @@ are a generated `switch`, 0 B per transition and NativeAOT-ready.
 dotnet add package ZeroAlloc.StateMachine
 ```
 
+The package targets `net10.0` and `net11.0`.
+
 ## Quick start
 
 ```csharp
