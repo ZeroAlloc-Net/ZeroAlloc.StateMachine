@@ -52,7 +52,7 @@ Three cases generate nothing for the host:
 
 | Case | Diagnostic |
 |------|------------|
-| A containing type is not `partial`, so it cannot be reopened | [ZSM0023](diagnostics/ZSM0023.md), warning |
+| A containing type is not `partial`, so it cannot be reopened | [ZSM0023](diagnostics/ZSM0023.md), error |
 | The host or its outermost containing type is `file`-local, which a generated file can never extend | [ZSM0024](diagnostics/ZSM0024.md), error |
 | The host's file name differs only in case from an earlier host's, such as `App.Order` and `App.order` | [ZSM0025](diagnostics/ZSM0025.md), error on the later host |
 

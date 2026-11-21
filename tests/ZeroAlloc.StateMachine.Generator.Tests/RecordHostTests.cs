@@ -1,4 +1,5 @@
 using System.Linq;
+using Microsoft.CodeAnalysis;
 
 namespace ZeroAlloc.StateMachine.Generator.Tests;
 
@@ -223,7 +224,9 @@ namespace N;
 public record Outer {{ {Machine} public partial record M {{ }} }}
 ");
 
-        run.GeneratorDiagnostics.Should().ContainSingle().Which.Id.Should().Be("ZSM0023");
+        var diagnostic = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
+        diagnostic.Id.Should().Be("ZSM0023");
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         run.HintNames.Should().BeEmpty();
     }
 }

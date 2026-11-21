@@ -23,7 +23,7 @@ public sealed class TransitionAttribute<TState, TTrigger> : Attribute
     /// When <c>true</c>, the generator emits a <c>Guard{TriggerName}(TState, TTrigger)</c>
     /// partial method stub and adds a <c>when</c> clause to the switch arm.
     /// Ignored in concurrent mode and inside a <c>[StateMachinePart]</c>: the transition fires
-    /// unconditionally and the generator reports warning <c>ZSM0022</c>.
+    /// unconditionally and the generator reports error <c>ZSM0022</c>.
     /// Default: <c>false</c>.
     /// </summary>
     public bool When { get; init; } = false;

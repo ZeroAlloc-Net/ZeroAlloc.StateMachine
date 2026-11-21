@@ -309,7 +309,7 @@ public class Outer
 
         var diagnostic = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
         diagnostic.Id.Should().Be("ZSM0023");
-        diagnostic.Severity.Should().Be(DiagnosticSeverity.Warning);
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture)
             .Should().Be("'N.Outer.M' is not generated because its containing type 'N.Outer' is not partial");
         LocatedText(diagnostic, source).Should().Be("M");
@@ -350,7 +350,7 @@ public partial class Fine
 
         var diagnostic = run.GeneratorDiagnostics.Should().ContainSingle().Subject;
         diagnostic.Id.Should().Be("ZSM0023");
-        diagnostic.Severity.Should().Be(DiagnosticSeverity.Warning);
+        diagnostic.Severity.Should().Be(DiagnosticSeverity.Error);
         diagnostic.GetMessage(System.Globalization.CultureInfo.InvariantCulture)
             .Should().Be("'N.Outer.Middle.G' is not generated because its containing type 'N.Outer' is not partial");
         LocatedText(diagnostic, source).Should().Be("G");

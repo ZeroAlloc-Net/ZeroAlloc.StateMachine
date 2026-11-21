@@ -18,7 +18,16 @@ internal sealed record DiagnosticInfo(
     LocationInfo? Location,
     EquatableArray<string> MessageArgs)
 {
-    public bool IsError => Descriptor.DefaultSeverity == DiagnosticSeverity.Error;
+    /// <summary>
+    /// Whether the diagnostic stops the host from being generated: every error does, except
+    /// ZSM0022. A guard ignored on a concurrent machine leaves a complete model, so the machine
+    /// is still generated, firing the transition unconditionally. The build fails on ZSM0022
+    /// alone rather than also on every use of the missing members, and a <c>#pragma</c> that
+    /// suppresses ZSM0022 gets the documented machine instead of an empty host.
+    /// </summary>
+    public bool BlocksGeneration =>
+        Descriptor.DefaultSeverity == DiagnosticSeverity.Error
+        && !ReferenceEquals(Descriptor, StateMachineDiagnostics.GuardIgnoredOnConcurrentMachine);
 
     /// <summary>
     /// Arguments are formatted with the invariant culture, as the message would format them. A

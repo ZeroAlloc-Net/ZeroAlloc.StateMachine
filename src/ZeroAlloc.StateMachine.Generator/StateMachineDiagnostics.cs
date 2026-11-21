@@ -197,7 +197,7 @@ internal static class StateMachineDiagnostics
         title:              "When = true is ignored on a concurrent machine",
         messageFormat:      "[Transition(From = {0}.{1}, On = {2}.{3}, To = {0}.{4}, When = true)] on '{5}': When = true is ignored on a concurrent machine, so this transition fires unconditionally. A guard cannot be evaluated atomically with the compare-and-swap that commits the transition (TOCTOU race). Encode the condition as a state, or check it before calling TryFire.",
         category:           "ZeroAlloc.StateMachine",
-        defaultSeverity:    DiagnosticSeverity.Warning,
+        defaultSeverity:    DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:        "Concurrent machines, which includes every [StateMachinePart] of a [StateMachineGroup], commit transitions with a lock-free compare-and-swap. A guard checked before that swap can be invalidated by another thread before it lands, so the generator emits no guard stub and no when clause, and the transition always fires. Split the source state so that only the state in which the condition holds has the transition, check the condition before calling TryFire, or remove Concurrent = true and synchronise callers externally.");
 
@@ -206,7 +206,7 @@ internal static class StateMachineDiagnostics
         title:              "State machine nested in a containing type that is not partial",
         messageFormat:      "'{0}' is not generated because its containing type '{1}' is not partial",
         category:           "ZeroAlloc.StateMachine",
-        defaultSeverity:    DiagnosticSeverity.Warning,
+        defaultSeverity:    DiagnosticSeverity.Error,
         isEnabledByDefault: true,
         description:        "The generated members are written into the host inside partial declarations of every containing type, so each containing type must be partial. Make every containing type partial, or move the host to the top level of a namespace.");
 
