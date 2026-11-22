@@ -70,3 +70,12 @@ Rule ID | Category               | Severity | Notes
 --------|------------------------|----------|-----------------------------------------------------------------
 ZSM0027 | ZeroAlloc.StateMachine | Info     | Restore is not generated: no parameterless constructor
 ZSM0028 | ZeroAlloc.StateMachine | Info     | Restore is not generated: the type declares a conflicting member
+
+## Release 2.0.0
+
+### Changed Rules
+
+Rule ID | New Category           | New Severity | Old Category           | Old Severity | Notes
+--------|------------------------|--------------|------------------------|--------------|---------------------------------------------------------------
+ZSM0022 | ZeroAlloc.StateMachine | Error        | ZeroAlloc.StateMachine | Warning      | When = true is ignored on a concurrent machine
+ZSM0023 | ZeroAlloc.StateMachine | Error        | ZeroAlloc.StateMachine | Warning      | State machine nested in a containing type that is not partial
