@@ -18,6 +18,8 @@ dotnet add package ZeroAlloc.StateMachine
 
 The package ships the runtime attributes and the Roslyn source generator as a single NuGet. No separate analyzer package is needed.
 
+The generator needs the .NET 10 SDK 10.0.100 or later, or Visual Studio 2026 or later. It is built against Roslyn 5.0, and an older compiler skips it with warning CS9057, after which `TryFire` and the other generated members are missing. Version 1.8.1 was built against Roslyn 5.9 and loads only in SDK 10.0.4xx or later; on an older .NET 10 SDK, use 1.8.2 or later.
+
 ---
 
 ## 2. Define your enums
