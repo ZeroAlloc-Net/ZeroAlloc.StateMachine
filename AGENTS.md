@@ -67,8 +67,26 @@ SHA=$(git rev-parse --short HEAD); dotnet pack src/ZeroAlloc.StateMachine -c Rel
 `dotnet pack` fails with ZAVERSION001 or ZAVERSION002 unless `-p:Version` is passed to the command that builds,
 so a pack with `--no-build` needs it on the build step too. Build and test do not need it. Pack rebuilds.
 
+CI job `sdk10-consumer` needs a 10.0.1xx SDK; `tests/ZeroAlloc.StateMachine.Sdk10Smoke/global.json` pins
+10.0.100 with `rollForward: latestPatch`, so a newer band cannot stand in for it. It builds and runs a
+consumer of the packed packages with Roslyn 5.0:
+
+```bash
+dotnet pack src/ZeroAlloc.StateMachine -c Release -o artifacts -p:Version=9.9.9-local.<sha>
+cd tests/ZeroAlloc.StateMachine.Sdk10Smoke/Consumer
+dotnet run -c Release -p:ZeroAllocStateMachineVersion=9.9.9-local.<sha>
+```
+
+CI job `roslyn-floor` calls the shared `roslyn-floor.yml` from ZeroAlloc-Net/.github: it packs the
+solution and fails when a packed DLL references Roslyn above 5.0.0.
+
 ## Conventions and gotchas
 
+- The generator references `Microsoft.CodeAnalysis.CSharp` 5.0.0, the compiler of SDK band 10.0.1xx, the
+  oldest supported SDK. A compiler older than the Roslyn the DLL references skips the generator with
+  `CS9057`, and nothing is generated. The shared Renovate preset holds it below 5.1. If a newer Roslyn API
+  is needed, change the code; raise the floor only together with the minimum SDK. The generator test
+  project may use a newer Roslyn.
 - Exception to the org rule on benchmark frameworks: the benchmark project targets only `net10.0`, not the
   LTS set, because BenchmarkDotNet 0.15.8 cannot run on `net11.0` (see the comment in its csproj).
 - The 0 B budget covers `TryFire` for valid, invalid, guard-allowed and guard-blocked transitions, and
