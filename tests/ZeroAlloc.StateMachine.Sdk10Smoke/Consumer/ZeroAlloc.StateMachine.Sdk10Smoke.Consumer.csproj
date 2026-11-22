@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Builds a consumer of the packed ZeroAlloc.StateMachine package with the oldest supported .NET SDK band,
+    10.0.1xx, whose compiler is Roslyn 5.0. If a generator in the package references a newer Roslyn
+    than the compiler that loads it, it is skipped with CS9057 and the generated TryFire method goes missing.
+
+    The parent folder's global.json pins the 10.0.1xx band with rollForward latestPatch, so a
+    newer band cannot stand in for it. Run locally with a 10.0.1xx SDK installed:
+      v=9.9.9-local.sha$(git rev-parse HEAD | cut -c1-7).$(date +%s)
+      dotnet pack src/ZeroAlloc.StateMachine -c Release -o artifacts -p:Version=$v
+      cd tests/ZeroAlloc.StateMachine.Sdk10Smoke/Consumer
+      dotnet run -c Release -p:ZeroAllocStateMachineVersion=$v
+    Not part of the solution; the sdk10-consumer job in ci.yml runs it.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <WarningsAsErrors>$(WarningsAsErrors);CS8032;CS9057</WarningsAsErrors>
+  </PropertyGroup>
+
+  <Target Name="RequireZeroAllocStateMachineVersion" BeforeTargets="CollectPackageReferences">
+    <Error Condition="'$(ZeroAllocStateMachineVersion)' == ''"
+           Text="Pass the version of the packed packages: -p:ZeroAllocStateMachineVersion=..." />
+  </Target>
+
+  <ItemGroup>
+    <PackageReference Include="ZeroAlloc.StateMachine" Version="[$(ZeroAllocStateMachineVersion)]" />
+  </ItemGroup>
+</Project>
